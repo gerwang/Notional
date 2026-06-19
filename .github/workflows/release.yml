@@ -1,0 +1,40 @@
+name: Release Obsidian plugin
+
+# Tag a commit with the exact manifest.json version (no leading "v"), push it,
+# and this builds the plugin and drafts a GitHub release with the three assets
+# Obsidian/BRAT need: main.js, manifest.json, styles.css.
+on:
+  push:
+    tags:
+      - "[0-9]+.[0-9]+.[0-9]+*"
+
+permissions:
+  contents: write
+
+jobs:
+  release:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "20.x"
+
+      - name: Install, verify, and build
+        run: |
+          npm ci
+          npm run lint
+          npm test
+          npm run build
+
+      - name: Draft GitHub release with plugin assets
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          tag: ${{ github.ref_name }}
+        run: |
+          gh release create "$tag" \
+            --title="$tag" \
+            --draft \
+            --generate-notes \
+            main.js manifest.json styles.css
