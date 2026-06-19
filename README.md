@@ -3,10 +3,9 @@
 nObsidian is a maintained fork of the abandoned Nobsidion plugin for syncing
 Obsidian notes with Notion pages.
 
-The current goal is a functional, usable sync tool that can keep Obsidian and
-Notion aligned without surprising overwrites. Obsidian-to-Notion upload is the
-most mature path today; Notion-to-Obsidian sync now exists as an experimental
-foundation with timestamp-based conflict checks.
+The goal is a functional, usable, two-way sync tool that keeps Obsidian and
+Notion aligned without surprising overwrites — backed by timestamp-based
+conflict detection.
 
 ## Features
 
@@ -24,6 +23,35 @@ foundation with timestamp-based conflict checks.
 - Sync the current note in the direction implied by stored sync timestamps.
 - Stop before overwriting when both Notion and Obsidian changed since the last
   recorded sync.
+
+## Status
+
+Pre-release (`1.1.0-beta.1`). Obsidian-to-Notion upload is the most mature path.
+Notion-to-Obsidian pull/sync works but is conservative and command/panel driven
+— see [Current Limitations](#current-limitations) before relying on it for
+important notes.
+
+## Installation
+
+nObsidian is not yet in the Obsidian community plugin store. Install it one of
+two ways:
+
+**Via BRAT (recommended — handles updates)**
+
+1. Install the [BRAT](https://github.com/TfTHacker/obsidian42-brat) plugin.
+2. In BRAT, choose *Add Beta Plugin*, enter `bryanbans/nObsidian`, and allow
+   pre-releases so you receive betas.
+3. Enable **nObsidian** under *Community Plugins*.
+
+**Manual**
+
+1. Download `main.js`, `manifest.json`, and `styles.css` from the latest
+   [release](https://github.com/bryanbans/nObsidian/releases).
+2. Copy them into `<vault>/.obsidian/plugins/nobsidian/`.
+3. Reload Obsidian and enable **nObsidian** under *Community Plugins*.
+
+After enabling, set your Notion API token and database ID in the plugin
+settings (see [Settings](#settings)).
 
 ## Sync panel
 
@@ -52,15 +80,19 @@ Use Obsidian's command palette:
 
 Required:
 
-- `Notion API Token`
-- `Database ID`
+- **Notion API Token** — your Notion integration token.
+- **Database ID** — the Notion database new pages are created in.
 
 Optional:
 
-- `Banner URL`
-- `Notion Workspace ID`
-- `Convert tags`
-- `Bidirectional sync (experimental)`
+- **Banner URL** — image URL used as a page banner.
+- **Notion Workspace ID** — formats share links as
+  `https://<workspace>.notion.site/`.
+- **Convert tags** — copy Obsidian tags into a Notion `Tags` column (the column
+  must already exist).
+- **Bidirectional sync (experimental)** — currently has **no effect**. The
+  pull/sync commands and the sync panel work regardless of this toggle; it is a
+  placeholder reserved for the planned automatic background sync.
 
 ## Sync Metadata
 
@@ -88,16 +120,45 @@ work.
   no line-level merge UI.
 - Notion blocks outside the supported subset are skipped during pull.
 
+## Roadmap
+
+Recently landed:
+
+- Parallel vault upload, deep block nesting, and wiki-link → Notion page
+  mentions.
+- Two-way sync foundation: pull/sync commands with timestamp conflict detection.
+- Sync side panel with one-click actions and explicit conflict resolution.
+
+Planned, roughly in priority order:
+
+- [ ] **Automatic background sync** — debounced on save plus periodic polling,
+      deferring to the panel's conflict resolution instead of overwriting.
+- [ ] **Wider Notion → Obsidian block coverage** — tables, callouts, toggles,
+      nested lists, and images, to reduce content loss on pull.
+- [ ] **Front-matter preservation hardening** with round-trip tests.
+- [ ] Wire up or remove the unused *Bidirectional sync* setting.
+- [ ] A dedicated sync-state store instead of ad hoc front-matter fields.
+- [ ] Submit to the Obsidian community plugin store after a guideline audit.
+
+Have a request? Open an issue on
+[GitHub](https://github.com/bryanbans/nObsidian/issues).
+
 ## Development
 
-Install dependencies and run checks:
+Requires Node.js (the CI builds on Node 20). Install dependencies and run the
+checks:
 
-```powershell
-$env:Path = "C:\Users\Bryan\AppData\Local\nvm\v24.17.0;" + $env:Path
-npm.cmd run build
-npm.cmd run lint
-npm.cmd test
+```bash
+npm install
+npm run build
+npm run lint
+npm test
 ```
+
+The build outputs `main.js`; releases bundle `main.js`, `manifest.json`, and
+`styles.css`. Tagging a commit whose name matches the `manifest.json` version
+(no `v` prefix) triggers the release workflow, which drafts a GitHub release
+with those assets.
 
 ## Acknowledgements
 
