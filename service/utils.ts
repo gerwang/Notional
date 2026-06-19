@@ -22,6 +22,7 @@ import * as yaml from "yaml";
 import { addIcon } from "obsidian";
 import { NoticeMsg } from "../static/message";
 import { icons } from "../static/icon";
+import { MarkdownWithFrontMatter } from "./types";
 
 const NOTION_PAGE_MENTION_URL_PREFIX = "nobsidian://notion-page/";
 
@@ -57,7 +58,7 @@ export const addIcons = (): void => {
  * @returns
  */
 export const fromYamlFrontMatterToMarkdown = (
-	contentWithFrontMatter: any
+	contentWithFrontMatter: MarkdownWithFrontMatter
 ): string => {
 	const { __content: mainContent, ...frontMatter } = contentWithFrontMatter;
 	/**
@@ -90,17 +91,6 @@ export const updateNotionPageUrlWithWorkspaceId = (
 		"www.notion.so",
 		`${notionWorkspaceId}.notion.site`
 	);
-};
-
-export const getWikiLinkFromMarkdown = (markdown: string): Set<string> => {
-	const obsidianLinkRegex = /\[\[([^\]]+)\]\]/g;
-	// Find all unique Obsidian links in the markdown
-	const links = new Set<string>();
-	let match;
-	while ((match = obsidianLinkRegex.exec(markdown)) !== null) {
-		links.add(match[1]);
-	}
-	return links;
 };
 
 export const getWikiLinksFromMarkdown = (markdown: string): WikiLink[] => {

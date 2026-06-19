@@ -25,7 +25,7 @@ export const NoticeMsg: { [key: string]: { [key: string]: string } } = {
 		"sync-success": "Sync to notion success: \n",
 		"sync-fail": "Sync to notion fail: \n",
 		"all-sync-success": "Entire vault sync success",
-		"open-notion": "Please open the file that needs to be synchronized",
+		"open-file": "Please open the file that needs to be synchronized",
 		"config-settings":
 			"Please set up the notion API token and database ID in the settings tab.",
 		"set-tags-fail":
