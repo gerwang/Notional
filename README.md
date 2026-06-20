@@ -26,10 +26,21 @@ conflict detection.
 
 ## Status
 
-Pre-release (`1.1.0-beta.1`). Obsidian-to-Notion upload is the most mature path.
-Notion-to-Obsidian pull/sync works but is conservative and command/panel driven
-— see [Current Limitations](#current-limitations) before relying on it for
-important notes.
+`1.1.0-beta.1` is released and installable (see [Installation](#installation)).
+It is a **beta**: Obsidian-to-Notion upload is the most mature path, while the
+Notion-to-Obsidian pull/sync direction works but is conservative. Read
+[Current Limitations](#current-limitations) and test on throwaway notes before
+trusting it with important ones.
+
+## Quick start
+
+1. **Install** via BRAT (`bryanbans/nObsidian`, betas enabled) or by dropping the
+   release assets into your vault — see [Installation](#installation).
+2. **Connect Notion** in the plugin settings: paste your connection token and
+   click *Test*, share a Notion page with the connection, then paste that page's
+   link and click *Create* — see [Setup](#setup).
+3. **Sync a note**: open the sync panel (the **sync** ribbon icon) and click
+   **Push**.
 
 ## Installation
 
