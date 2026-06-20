@@ -80,7 +80,7 @@ export class SyncView extends ItemView {
 	}
 
 	getDisplayText(): string {
-		return "Nobsidion sync";
+		return "nObsidian sync";
 	}
 
 	getIcon(): string {
@@ -187,7 +187,7 @@ export class SyncView extends ItemView {
 		root.addClass("nobsidian-sync");
 
 		const header = root.createDiv({ cls: "nob-header" });
-		header.createEl("h4", { text: "Nobsidion Sync", cls: "nob-title" });
+		header.createEl("h4", { text: "nObsidian Sync", cls: "nob-title" });
 		new ButtonComponent(header)
 			.setIcon("refresh-cw")
 			.setTooltip("Refresh status")

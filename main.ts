@@ -92,7 +92,7 @@ export default class NObsidian extends Plugin {
 			VIEW_TYPE_SYNC,
 			(leaf) => new SyncView(leaf, this)
 		);
-		this.addRibbonIcon("sync", "Open Nobsidion sync panel", () => {
+		this.addRibbonIcon("sync", "Open nObsidian sync panel", () => {
 			this.activateSyncView();
 		});
 
@@ -387,7 +387,7 @@ export default class NObsidian extends Plugin {
 				if (!this.conflictNotified.has(file.path)) {
 					this.conflictNotified.add(file.path);
 					new Notice(
-						`Sync conflict in “${file.basename}” — resolve it in the Nobsidion sync panel.`,
+						`Sync conflict in “${file.basename}” — resolve it in the nObsidian sync panel.`,
 						8000
 					);
 				}
