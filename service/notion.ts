@@ -198,6 +198,21 @@ const indentMarkdown = (markdown: string): string => {
 		.join("\n");
 };
 
+// Block types that carry no standalone text (navigational markers) or are pure
+// layout containers whose children are rendered anyway. These are skipped
+// without a placeholder so pulled notes don't fill up with noise.
+const IGNORED_BLOCK_TYPES = new Set([
+	"table_of_contents",
+	"breadcrumb",
+	"child_page",
+	"child_database",
+	"link_to_page",
+	"column_list",
+	"column",
+	"synced_block",
+	"template",
+]);
+
 const blockToMarkdown = (block: NotionBlock): string => {
 	const children = getBlockChildren(block)
 		.map(blockToMarkdown)
@@ -238,8 +253,29 @@ const blockToMarkdown = (block: NotionBlock): string => {
 			)}\n\`\`\``;
 		case "divider":
 			return "---";
-		default:
-			return "";
+		default: {
+			// Unknown/unsupported type: never drop it silently. Preserve any
+			// text, nested children, and media URL, and flag it so the user
+			// knows the conversion was imperfect.
+			const typed = block.type ? block[block.type] : undefined;
+			const text = typed?.rich_text
+				? richTextToMarkdown(typed.rich_text)
+				: "";
+			const body = [text, children].filter(Boolean).join("\n");
+
+			if (block.type && IGNORED_BLOCK_TYPES.has(block.type)) {
+				return body;
+			}
+
+			const label = (block.type || "unknown").replace(/_/g, " ");
+			const url =
+				typed?.external?.url || typed?.file?.url || typed?.url || "";
+			const marker = `> [!missing] Unsupported Notion block (${label})${
+				url ? `: ${url}` : ""
+			}`;
+
+			return body ? `${marker}\n${body}` : marker;
+		}
 	}
 };
 

@@ -267,3 +267,82 @@ describe("notion.createDatabase", () => {
 		expect(body.properties.Name.title).toBeDefined();
 	});
 });
+
+describe("notion.retrievePageMarkdown unsupported blocks", () => {
+	beforeEach(() => jest.clearAllMocks());
+
+	it("flags unsupported blocks instead of dropping them and keeps text and URLs", async () => {
+		(requestUrl as jest.Mock)
+			.mockResolvedValueOnce({
+				json: { id: "page-id", last_edited_time: "2024-01-01T00:00:00.000Z" },
+			})
+			.mockResolvedValueOnce({
+				json: {
+					results: [
+						{
+							id: "callout-id",
+							type: "callout",
+							has_children: false,
+							callout: { rich_text: [{ plain_text: "Heads up" }] },
+						},
+						{
+							id: "image-id",
+							type: "image",
+							has_children: false,
+							image: {
+								type: "file",
+								file: { url: "https://files.notion/img.png" },
+							},
+						},
+					],
+					has_more: false,
+					next_cursor: null,
+				},
+			});
+
+		const result = await notion.retrievePageMarkdown(settings, "page-id");
+
+		expect(result.error).toBeNull();
+		expect(result.data.markdown).toContain(
+			"> [!missing] Unsupported Notion block (callout)"
+		);
+		expect(result.data.markdown).toContain("Heads up");
+		expect(result.data.markdown).toContain(
+			"> [!missing] Unsupported Notion block (image): https://files.notion/img.png"
+		);
+	});
+
+	it("silently skips navigational blocks but keeps real content", async () => {
+		(requestUrl as jest.Mock)
+			.mockResolvedValueOnce({
+				json: { id: "page-id", last_edited_time: "2024-01-01T00:00:00.000Z" },
+			})
+			.mockResolvedValueOnce({
+				json: {
+					results: [
+						{
+							id: "breadcrumb-id",
+							type: "breadcrumb",
+							has_children: false,
+							breadcrumb: {},
+						},
+						{
+							id: "para-id",
+							type: "paragraph",
+							has_children: false,
+							paragraph: { rich_text: [{ plain_text: "Hello" }] },
+						},
+					],
+					has_more: false,
+					next_cursor: null,
+				},
+			});
+
+		const result = await notion.retrievePageMarkdown(settings, "page-id");
+
+		expect(result.error).toBeNull();
+		expect(result.data.markdown).toBe("Hello");
+		expect(result.data.markdown).not.toContain("[!missing]");
+		expect(result.data.markdown).not.toContain("breadcrumb");
+	});
+});

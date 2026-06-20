@@ -132,7 +132,9 @@ work.
   panel or the command palette.
 - Conflict resolution is a "keep one side" choice (push or force-pull); there is
   no line-level merge UI.
-- Notion blocks outside the supported subset are skipped during pull.
+- Notion blocks outside the supported subset are not converted, but they are
+  **not dropped silently**: each is replaced with a `> [!missing]` callout that
+  preserves any text and media URL, so you can see what didn't round-trip.
 
 ## Roadmap
 
