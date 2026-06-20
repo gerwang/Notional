@@ -1,10 +1,4 @@
 module.exports = {
-	// roots: ["<rootDir>/service"],
-	testMatch: [
-		"**/__tests__/**/*.+(ts|tsx|js)",
-		"**/?(*.)+(spec|test).+(ts|tsx|js)",
-	],
-	transform: {
-		"^.+\\.(ts|tsx)$": "ts-jest",
-	},
+	preset: "ts-jest",
+	setupFiles: ["<rootDir>/jest.setup.cjs"],
 };

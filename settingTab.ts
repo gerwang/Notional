@@ -37,7 +37,6 @@ export class NObsidianSettingTab extends PluginSettingTab {
 		const { containerEl } = this;
 
 		containerEl.empty();
-		containerEl.createEl("h2", { text: "Notional settings" });
 
 		this.renderConnectSection(containerEl);
 		this.renderDatabaseSection(containerEl);
@@ -46,7 +45,7 @@ export class NObsidianSettingTab extends PluginSettingTab {
 	}
 
 	private renderAutoSyncSection(containerEl: HTMLElement): void {
-		containerEl.createEl("h3", { text: "Automatic sync" });
+		new Setting(containerEl).setName("Automatic sync").setHeading();
 
 		this.createToggleSetting(containerEl, {
 			name: "Automatic sync (experimental)",
@@ -74,7 +73,7 @@ export class NObsidianSettingTab extends PluginSettingTab {
 	}
 
 	private renderConnectSection(containerEl: HTMLElement): void {
-		containerEl.createEl("h3", { text: "1. Connect to Notion" });
+		new Setting(containerEl).setName("1. Connect to Notion").setHeading();
 
 		const help = containerEl.createEl("p", {
 			cls: "setting-item-description",
@@ -136,7 +135,7 @@ export class NObsidianSettingTab extends PluginSettingTab {
 	}
 
 	private renderDatabaseSection(containerEl: HTMLElement): void {
-		containerEl.createEl("h3", { text: "2. Choose where your notes go" });
+		new Setting(containerEl).setName("2. Choose where your notes go").setHeading();
 
 		const status = containerEl.createEl("div", {
 			cls: "setting-item-description nob-setup-status",
@@ -219,7 +218,7 @@ export class NObsidianSettingTab extends PluginSettingTab {
 	}
 
 	private renderAdvancedSection(containerEl: HTMLElement): void {
-		containerEl.createEl("h3", { text: "Advanced" });
+		new Setting(containerEl).setName("Advanced").setHeading();
 
 		this.createTextSetting(containerEl, {
 			name: "Database ID",

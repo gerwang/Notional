@@ -47,7 +47,7 @@ const RETRYABLE_STATUSES = new Set([429, 502, 503, 504]);
 const MAX_RETRIES = 3;
 
 const sleep = (ms: number): Promise<void> =>
-	new Promise((resolve) => setTimeout(resolve, ms));
+	new Promise((resolve) => window.setTimeout(resolve, ms));
 
 // Wrap requestUrl with retry/backoff for rate limits (429) and transient 5xx
 // errors, then throw on any remaining failure so existing try/catch handlers
