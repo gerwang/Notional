@@ -241,6 +241,38 @@ describe("notion.validateToken", () => {
 	});
 });
 
+describe("notion request retry", () => {
+	beforeEach(() => jest.clearAllMocks());
+
+	it("retries on a 429 then succeeds", async () => {
+		(requestUrl as jest.Mock)
+			.mockResolvedValueOnce({
+				status: 429,
+				headers: { "retry-after": "0" },
+				json: { message: "rate limited" },
+			})
+			.mockResolvedValueOnce({ status: 200, json: { name: "ok" } });
+
+		const result = await notion.validateToken(settings);
+
+		expect(result.error).toBeNull();
+		expect(result.data.name).toBe("ok");
+		expect(requestUrl as jest.Mock).toHaveBeenCalledTimes(2);
+	});
+
+	it("does not retry a non-retryable status", async () => {
+		(requestUrl as jest.Mock).mockResolvedValueOnce({
+			status: 400,
+			json: { message: "bad request" },
+		});
+
+		const result = await notion.validateToken(settings);
+
+		expect(result.error).not.toBeNull();
+		expect(requestUrl as jest.Mock).toHaveBeenCalledTimes(1);
+	});
+});
+
 describe("notion.createDatabase", () => {
 	beforeEach(() => jest.clearAllMocks());
 

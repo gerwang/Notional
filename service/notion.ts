@@ -19,7 +19,7 @@
     along with this program. If not, see <https://www.gnu.org/licenses/>.
 */
 
-import { requestUrl } from "obsidian";
+import { RequestUrlParam, RequestUrlResponse, requestUrl } from "obsidian";
 import { markdownToBlocks } from "@tryfabric/martian";
 import { PluginSettings, ServiceResult } from "./types";
 import { getNotionPageMentionId } from "./utils";
@@ -41,6 +41,47 @@ type NotionPage = {
 	url?: string;
 	last_edited_time?: string;
 	[key: string]: any;
+};
+
+const RETRYABLE_STATUSES = new Set([429, 502, 503, 504]);
+const MAX_RETRIES = 3;
+
+const sleep = (ms: number): Promise<void> =>
+	new Promise((resolve) => setTimeout(resolve, ms));
+
+// Wrap requestUrl with retry/backoff for rate limits (429) and transient 5xx
+// errors, then throw on any remaining failure so existing try/catch handlers
+// keep working. Honors a Retry-After header when present.
+const notionRequest = async (
+	options: RequestUrlParam
+): Promise<RequestUrlResponse> => {
+	for (let attempt = 0; ; attempt++) {
+		const response = await requestUrl({ ...options, throw: false });
+		if (response.status === undefined || response.status < 400) {
+			return response;
+		}
+
+		const retryable = RETRYABLE_STATUSES.has(response.status);
+		if (!retryable || attempt >= MAX_RETRIES) {
+			let detail = `status ${response.status}`;
+			try {
+				if (response.json?.message) detail = response.json.message;
+			} catch {
+				// non-JSON body; keep the status text
+			}
+			throw Error(`Notion API ${response.status}: ${detail}`);
+		}
+
+		const retryAfter = Number(
+			response.headers?.["retry-after"] ??
+				response.headers?.["Retry-After"]
+		);
+		const backoff =
+			Number.isFinite(retryAfter) && retryAfter > 0
+				? retryAfter * 1000
+				: 2 ** attempt * 500;
+		await sleep(backoff);
+	}
 };
 
 const getBlockChildren = (block: NotionBlock): NotionBlock[] => {
@@ -92,7 +133,7 @@ const appendBlockChildren = async (
 ) => {
 	const notionAPIToken = settings.notionAPIToken;
 
-	return requestUrl({
+	return notionRequest({
 		url: `https://api.notion.com/v1/blocks/${blockId}/children`,
 		method: "PATCH",
 		headers: {
@@ -391,7 +432,7 @@ const retrievePage = async (
 	let res = null;
 
 	try {
-		res = await requestUrl({
+		res = await notionRequest({
 			url: `https://api.notion.com/v1/pages/${notionPageId}`,
 			method: "GET",
 			headers: getAuthHeaders(settings),
@@ -419,7 +460,7 @@ const retrieveBlockChildren = async (
 			const cursorQuery = startCursor
 				? `?start_cursor=${encodeURIComponent(startCursor)}`
 				: "";
-			res = await requestUrl({
+			res = await notionRequest({
 				url: `https://api.notion.com/v1/blocks/${blockId}/children${cursorQuery}`,
 				method: "GET",
 				headers: getAuthHeaders(settings),
@@ -478,7 +519,7 @@ const validateToken = async (
 	let res = null;
 
 	try {
-		res = await requestUrl({
+		res = await notionRequest({
 			url: "https://api.notion.com/v1/users/me",
 			method: "GET",
 			headers: getAuthHeaders(settings),
@@ -500,7 +541,7 @@ const retrieveDatabase = async (
 	let res = null;
 
 	try {
-		res = await requestUrl({
+		res = await notionRequest({
 			url: `https://api.notion.com/v1/databases/${databaseId}`,
 			method: "GET",
 			headers: getAuthHeaders(settings),
@@ -534,7 +575,7 @@ const createDatabase = async (
 	};
 
 	try {
-		res = await requestUrl({
+		res = await notionRequest({
 			url: "https://api.notion.com/v1/databases",
 			method: "POST",
 			headers: getJsonHeaders(settings),
@@ -580,7 +621,7 @@ const createEmptyPage = async (
 	}
 
 	try {
-		res = await requestUrl({
+		res = await notionRequest({
 			url: `https://api.notion.com/v1/pages`,
 			method: "POST",
 			headers: {
@@ -624,7 +665,7 @@ const clearPageContent = async (
 ): Promise<ServiceResult> => {
 	try {
 		// Retrieve the list of block children for the given page ID
-		const listResponse = await requestUrl({
+		const listResponse = await notionRequest({
 			url: `https://api.notion.com/v1/blocks/${notionPageId}/children`,
 			method: "GET",
 			headers: {
@@ -636,7 +677,7 @@ const clearPageContent = async (
 		if (listResponse && listResponse.json && listResponse.json.results) {
 			for (const block of listResponse.json.results) {
 				// Each block has an ID, which you can use to delete it
-				await requestUrl({
+				await notionRequest({
 					url: `https://api.notion.com/v1/blocks/${block.id}`,
 					method: "DELETE",
 					headers: {
