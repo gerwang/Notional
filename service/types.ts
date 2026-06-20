@@ -21,10 +21,11 @@
 export type PluginSettings = {
 	notionAPIToken: string;
 	databaseID: string;
+	// Link to a shared Notion page; used to auto-create the notes database.
+	notionParentPageUrl: string;
 	bannerUrl: string;
 	notionWorkspaceID: string;
 	allowTags: boolean;
-	bidirectionalSync: boolean;
 };
 
 export type StringKeys<T> = Exclude<

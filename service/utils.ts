@@ -140,6 +140,30 @@ export const getNotionPageMentionId = (url: string): string | null => {
 	);
 };
 
+/**
+ * Pull a Notion object ID out of a pasted page/database link (or a raw ID).
+ *
+ * Notion IDs are 32 hex characters, shown either bare or as a hyphenated UUID,
+ * and usually sit at the end of a URL path. The query string is dropped first
+ * so a database view ID (`?v=...`) is never mistaken for the object ID.
+ *
+ * @returns the ID as a hyphenated UUID, or null if none was found.
+ */
+export const extractNotionId = (input: string): string | null => {
+	if (!input) return null;
+
+	const withoutQuery = input.trim().split("?")[0];
+	const matches = withoutQuery.match(
+		/[0-9a-fA-F]{32}|[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}/g
+	);
+	if (!matches || matches.length === 0) return null;
+
+	const raw = matches[matches.length - 1].replace(/-/g, "").toLowerCase();
+	if (raw.length !== 32) return null;
+
+	return `${raw.slice(0, 8)}-${raw.slice(8, 12)}-${raw.slice(12, 16)}-${raw.slice(16, 20)}-${raw.slice(20)}`;
+};
+
 export const getBasenameFromPath = (filePath: string): string => {
 	// Extract the file name from the full path
 	const fileName = filePath.split("/").pop();

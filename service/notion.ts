@@ -335,6 +335,84 @@ const retrievePageMarkdown = async (
 	};
 };
 
+const validateToken = async (
+	settings: PluginSettings
+): Promise<ServiceResult> => {
+	let res = null;
+
+	try {
+		res = await requestUrl({
+			url: "https://api.notion.com/v1/users/me",
+			method: "GET",
+			headers: getAuthHeaders(settings),
+		});
+
+		return { data: res.json, error: null };
+	} catch (error) {
+		return {
+			data: res,
+			error: Error(`Could not reach Notion with this token: ${error}`),
+		};
+	}
+};
+
+const retrieveDatabase = async (
+	settings: PluginSettings,
+	databaseId: string
+): Promise<ServiceResult> => {
+	let res = null;
+
+	try {
+		res = await requestUrl({
+			url: `https://api.notion.com/v1/databases/${databaseId}`,
+			method: "GET",
+			headers: getAuthHeaders(settings),
+		});
+
+		return { data: res.json, error: null };
+	} catch (error) {
+		return {
+			data: res,
+			error: Error(`Could not access this Notion database: ${error}`),
+		};
+	}
+};
+
+const createDatabase = async (
+	settings: PluginSettings,
+	parentPageId: string,
+	title = "Obsidian Notes"
+): Promise<ServiceResult> => {
+	let res = null;
+
+	const body = {
+		parent: { type: "page_id", page_id: parentPageId },
+		title: [{ type: "text", text: { content: title } }],
+		properties: {
+			// "Name" is the title column uploads write to; "Tags" backs the
+			// optional Convert tags setting.
+			Name: { title: {} },
+			Tags: { multi_select: {} },
+		},
+	};
+
+	try {
+		res = await requestUrl({
+			url: "https://api.notion.com/v1/databases",
+			method: "POST",
+			headers: getJsonHeaders(settings),
+			body: JSON.stringify(body),
+		});
+
+		return { data: res.json, error: null };
+	} catch (error) {
+		return {
+			data: res,
+			error: Error(`Error creating Notion database: ${error}`),
+		};
+	}
+};
+
 const createEmptyPage = async (
 	settings: PluginSettings,
 	title: string,
@@ -463,6 +541,9 @@ const uploadFileContent = async (
 };
 
 const notion = {
+	validateToken,
+	retrieveDatabase,
+	createDatabase,
 	createEmptyPage,
 	retrievePage,
 	retrievePageMarkdown,

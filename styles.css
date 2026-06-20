@@ -116,3 +116,16 @@
 .nobsidian-sync .nob-bad-text {
 	color: var(--color-red);
 }
+
+/* Settings setup wizard status lines */
+.nob-setup-status {
+	margin: 4px 0 12px;
+}
+
+.nob-status-ok {
+	color: var(--color-green);
+}
+
+.nob-status-bad {
+	color: var(--color-red);
+}

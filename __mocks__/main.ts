@@ -11,10 +11,10 @@ class NObsidian {
 		this.settings = {
 			notionAPIToken: "",
 			databaseID: "",
+			notionParentPageUrl: "",
 			bannerUrl: "",
 			notionWorkspaceID: "",
 			allowTags: false,
-			bidirectionalSync: false,
 		};
 		this.message = NoticeMessageConfig("en");
 		this.fileNameToFile = new Map<string, TFile>();

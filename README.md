@@ -50,8 +50,7 @@ two ways:
 2. Copy them into `<vault>/.obsidian/plugins/nobsidian/`.
 3. Reload Obsidian and enable **nObsidian** under *Community Plugins*.
 
-After enabling, set your Notion API token and database ID in the plugin
-settings (see [Settings](#settings)).
+After enabling, open the plugin settings and follow the [Setup](#setup) steps.
 
 ## Sync panel
 
@@ -76,23 +75,27 @@ Use Obsidian's command palette:
 - `Sync current note with Notion`
 - `Open sync panel`
 
-## Settings
+## Setup
 
-Required:
+Open **Settings → nObsidian** and follow the two steps:
 
-- **Notion API Token** — your Notion integration token.
-- **Database ID** — the Notion database new pages are created in.
+1. **Connect to Notion.** Create a connection at
+   [notion.so/my-integrations](https://www.notion.so/my-integrations) (choose
+   *Access token*), paste its secret into **Notion API token**, and click
+   **Test** to confirm it works. Then open the Notion page you want to use and
+   share it with the connection (*••• → Connections*).
+2. **Choose where your notes go.** Paste the link of that shared page into
+   **Notion parent page link** and click **Create**. nObsidian creates a
+   database there and remembers it — no hunting for a database ID.
 
-Optional:
+Other settings:
 
 - **Banner URL** — image URL used as a page banner.
 - **Notion Workspace ID** — formats share links as
   `https://<workspace>.notion.site/`.
-- **Convert tags** — copy Obsidian tags into a Notion `Tags` column (the column
-  must already exist).
-- **Bidirectional sync (experimental)** — currently has **no effect**. The
-  pull/sync commands and the sync panel work regardless of this toggle; it is a
-  placeholder reserved for the planned automatic background sync.
+- **Convert tags** — copy Obsidian tags into a Notion `Tags` column.
+- **Advanced → Database ID** — set manually to use an existing database instead
+  of creating one.
 
 ## Sync Metadata
 
@@ -128,15 +131,19 @@ Recently landed:
   mentions.
 - Two-way sync foundation: pull/sync commands with timestamp conflict detection.
 - Sync side panel with one-click actions and explicit conflict resolution.
+- Guided setup: a *Test connection* button and auto-created notes database, so
+  you never copy a database ID by hand.
 
 Planned, roughly in priority order:
 
+- [ ] **One-click OAuth ("Connect to Notion")** — authorize in the browser and
+      pick pages with Notion's own picker, removing the token / sharing steps
+      entirely. Needs a small hosted token-exchange endpoint.
 - [ ] **Automatic background sync** — debounced on save plus periodic polling,
       deferring to the panel's conflict resolution instead of overwriting.
 - [ ] **Wider Notion → Obsidian block coverage** — tables, callouts, toggles,
       nested lists, and images, to reduce content loss on pull.
 - [ ] **Front-matter preservation hardening** with round-trip tests.
-- [ ] Wire up or remove the unused *Bidirectional sync* setting.
 - [ ] A dedicated sync-state store instead of ad hoc front-matter fields.
 - [ ] Submit to the Obsidian community plugin store after a guideline audit.
 

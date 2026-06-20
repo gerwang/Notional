@@ -11,10 +11,10 @@ import { PluginSettings } from "../service/types";
 const settings: PluginSettings = {
 	notionAPIToken: "secret",
 	databaseID: "database-id",
+	notionParentPageUrl: "",
 	bannerUrl: "",
 	notionWorkspaceID: "",
 	allowTags: false,
-	bidirectionalSync: false,
 };
 
 const paragraph = (content: string) => ({
@@ -212,5 +212,58 @@ describe("notion.retrievePageMarkdown", () => {
 		expect(result.data.page.last_edited_time).toBe(
 			"2024-01-02T00:00:00.000Z"
 		);
+	});
+});
+
+describe("notion.validateToken", () => {
+	beforeEach(() => jest.clearAllMocks());
+
+	it("returns the connection user on success", async () => {
+		(requestUrl as jest.Mock).mockResolvedValueOnce({
+			json: { name: "My Connection", type: "bot" },
+		});
+
+		const result = await notion.validateToken(settings);
+
+		expect(result.error).toBeNull();
+		expect(result.data.name).toBe("My Connection");
+		expect((requestUrl as jest.Mock).mock.calls[0][0].url).toContain(
+			"/v1/users/me"
+		);
+	});
+
+	it("returns an error when the request fails", async () => {
+		(requestUrl as jest.Mock).mockRejectedValueOnce(new Error("401"));
+
+		const result = await notion.validateToken(settings);
+
+		expect(result.error).not.toBeNull();
+	});
+});
+
+describe("notion.createDatabase", () => {
+	beforeEach(() => jest.clearAllMocks());
+
+	it("posts a database under the parent page with a title property", async () => {
+		(requestUrl as jest.Mock).mockResolvedValueOnce({
+			json: { id: "new-db-id", object: "database" },
+		});
+
+		const result = await notion.createDatabase(
+			settings,
+			"parent-page-id",
+			"Obsidian Notes"
+		);
+
+		expect(result.error).toBeNull();
+		expect(result.data.id).toBe("new-db-id");
+
+		const call = (requestUrl as jest.Mock).mock.calls[0][0];
+		expect(call.method).toBe("POST");
+		expect(call.url).toContain("/v1/databases");
+		const body = JSON.parse(call.body);
+		expect(body.parent.page_id).toBe("parent-page-id");
+		expect(body.title[0].text.content).toBe("Obsidian Notes");
+		expect(body.properties.Name.title).toBeDefined();
 	});
 });

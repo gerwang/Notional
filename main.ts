@@ -41,10 +41,10 @@ import { SyncView, VIEW_TYPE_SYNC } from "./view";
 const DEFAULT_SETTINGS: PluginSettings = {
 	notionAPIToken: "",
 	databaseID: "",
+	notionParentPageUrl: "",
 	bannerUrl: "",
 	notionWorkspaceID: "",
 	allowTags: false,
-	bidirectionalSync: false,
 };
 
 const BULK_UPLOAD_CONCURRENCY = 3;
