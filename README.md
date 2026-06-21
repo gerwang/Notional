@@ -181,7 +181,7 @@ Recently shipped:
 - guided setup with connection testing and database creation
 - sync side panel
 - opt-in automatic sync
-- Marketplace review cleanup for release `1.1.10`
+- Marketplace review cleanup through release `1.1.11`
 
 Next:
 

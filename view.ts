@@ -135,7 +135,7 @@ export class SyncView extends ItemView {
 					`Status check failed: ${result.error.message}`
 				);
 			} else {
-				this.status = result.data as SyncStatus;
+				this.status = result.data;
 			}
 		}
 

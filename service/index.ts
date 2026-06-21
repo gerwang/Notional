@@ -103,7 +103,7 @@ const initializeNotionPageContent = async (
 		);
 		if (createPageResult.error) throw createPageResult.error;
 
-		const data = createPageResult.data as NotionPage;
+		const data = createPageResult.data;
 		const { url: rawNotionPageUrl, id: notionPageId } = data;
 		if (!rawNotionPageUrl || !notionPageId) {
 			throw Error("Notion did not return a page URL or ID");
@@ -205,7 +205,7 @@ export const getSyncStatus = async (
 	if (pageResult.error) {
 		return errorResult(pageResult.error, pageResult.data);
 	}
-	const notionPage = pageResult.data as NotionPage;
+	const notionPage = pageResult.data;
 
 	const hasRemoteChanges = hasNotionChangesSinceLastSync(
 		contentWithFrontMatter,
@@ -324,10 +324,7 @@ export const runWithConcurrency = async <T, R>(
 		throw Error("Concurrency must be a positive integer");
 	}
 
-	const results = Array.from(
-		{ length: items.length },
-		(): R | undefined => undefined
-	);
+	const results: R[] = [];
 	let nextIndex = 0;
 
 	const runWorker = async () => {
@@ -344,7 +341,7 @@ export const runWithConcurrency = async <T, R>(
 	);
 	await Promise.all(workers);
 
-	return results as R[];
+	return results;
 };
 
 /**

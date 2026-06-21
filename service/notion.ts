@@ -543,7 +543,7 @@ const retrieveBlockChildren = async (
 						(block[typeKey] as Record<string, unknown>) ?? {};
 					block[typeKey] = {
 						...typedBlock,
-						children: childrenResult.data as NotionBlock[],
+						children: childrenResult.data,
 					};
 				}
 				blocks.push(block);
@@ -577,8 +577,8 @@ const retrievePageMarkdown = async (
 
 	return {
 		data: {
-			page: pageResult.data as NotionPage,
-			markdown: blocksToMarkdown(childrenResult.data as NotionBlock[]),
+			page: pageResult.data,
+			markdown: blocksToMarkdown(childrenResult.data),
 		},
 		error: null,
 	};

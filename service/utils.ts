@@ -91,7 +91,7 @@ export const parseFrontMatter = (content: string): MarkdownWithFrontMatter => {
 	if (!match) return { __content: content };
 
 	const parsed = yaml.parse(match[1]) as Record<string, unknown> | null;
-	return { ...(parsed ?? {}), __content: match[2] } as MarkdownWithFrontMatter;
+	return { ...(parsed ?? {}), __content: match[2] };
 };
 
 export const updateNotionPageUrlWithWorkspaceId = (
