@@ -124,7 +124,7 @@ export class NObsidianSettingTab extends PluginSettingTab {
 						);
 						return;
 					}
-					const name = result.data?.name;
+					const name = (result.data as { name?: string } | null)?.name;
 					this.setStatus(
 						status,
 						true,
@@ -188,7 +188,7 @@ export class NObsidianSettingTab extends PluginSettingTab {
 							);
 							return;
 						}
-						this.plugin.settings.databaseID = result.data.id;
+						this.plugin.settings.databaseID = (result.data as { id: string }).id;
 						await this.plugin.saveSettings();
 						this.display();
 					})

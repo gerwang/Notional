@@ -19,6 +19,8 @@
     along with this program. If not, see <https://www.gnu.org/licenses/>.
 */
 
+/* eslint-disable @typescript-eslint/no-explicit-any, @typescript-eslint/no-unsafe-assignment, @typescript-eslint/no-unsafe-member-access, @typescript-eslint/no-unsafe-argument, @typescript-eslint/no-unsafe-return, @typescript-eslint/no-unsafe-call -- wraps Notion's untyped JSON REST API; response shapes are dynamic */
+
 import { RequestUrlParam, RequestUrlResponse, requestUrl } from "obsidian";
 import { markdownToBlocks } from "@tryfabric/martian";
 import { PluginSettings, ServiceResult } from "./types";

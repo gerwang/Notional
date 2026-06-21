@@ -1,3 +1,5 @@
+/* eslint-disable @typescript-eslint/no-explicit-any, @typescript-eslint/no-unsafe-assignment, @typescript-eslint/no-unsafe-member-access, @typescript-eslint/no-unsafe-argument -- wraps Notion's untyped JSON REST API; response shapes are dynamic */
+
 import { TFile } from "obsidian";
 import NObsidian from "main";
 import { MarkdownWithFrontMatter, ServiceResult, SyncStatus } from "./types";

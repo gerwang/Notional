@@ -12,6 +12,12 @@ export default [
 		plugins: { obsidianmd, "@typescript-eslint": tseslint.plugin },
 		rules: {
 			"@typescript-eslint/no-floating-promises": "error",
+			"@typescript-eslint/no-unsafe-assignment": "error",
+			"@typescript-eslint/no-unsafe-member-access": "error",
+			"@typescript-eslint/no-unsafe-argument": "error",
+			"@typescript-eslint/no-unsafe-return": "error",
+			"@typescript-eslint/no-unsafe-call": "error",
+			"@typescript-eslint/no-explicit-any": "error",
 			"obsidianmd/no-unsupported-api": "error",
 			"obsidianmd/settings-tab/no-manual-html-headings": "error",
 			"obsidianmd/settings-tab/no-problematic-settings-headings": "warn",

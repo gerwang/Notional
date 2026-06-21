@@ -1,4 +1,4 @@
-import { extractNotionId } from "../service/utils";
+import { extractNotionId, parseFrontMatter } from "../service/utils";
 
 describe("extractNotionId", () => {
 	it("extracts the id from a page URL with a title slug", () => {
@@ -32,5 +32,19 @@ describe("extractNotionId", () => {
 	it("returns null when there is no id", () => {
 		expect(extractNotionId("https://example.com/not-a-notion-link")).toBeNull();
 		expect(extractNotionId("")).toBeNull();
+	});
+});
+
+describe("parseFrontMatter", () => {
+	it("splits front matter and body", () => {
+		const r = parseFrontMatter("---\ntitle: Hi\ntags:\n  - a\n---\nBody here");
+		expect(r.title).toBe("Hi");
+		expect(r.tags).toEqual(["a"]);
+		expect(r.__content).toBe("Body here");
+	});
+
+	it("returns the full content as body when there is no front matter", () => {
+		const r = parseFrontMatter("Just a body, no front matter");
+		expect(r.__content).toBe("Just a body, no front matter");
 	});
 });

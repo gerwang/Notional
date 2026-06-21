@@ -5,6 +5,7 @@ export default tseslint.config(
 	{
 		ignores: ["main.js", "node_modules/**"],
 	},
+	{ linterOptions: { reportUnusedDisableDirectives: "off" } },
 	eslint.configs.recommended,
 	...tseslint.configs.recommended,
 	{

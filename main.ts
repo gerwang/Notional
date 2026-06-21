@@ -28,7 +28,6 @@ import {
 	debounce,
 	normalizePath,
 } from "obsidian";
-import * as yamlFrontMatter from "yaml-front-matter";
 import {
 	PluginSettings,
 	MarkdownWithFrontMatter,
@@ -36,7 +35,11 @@ import {
 	BulkUploadFileResult,
 } from "service/types";
 import { NObsidianSettingTab } from "settingTab";
-import { NoticeMessageConfig, getBasenameFromPath } from "service/utils";
+import {
+	NoticeMessageConfig,
+	getBasenameFromPath,
+	parseFrontMatter,
+} from "service/utils";
 import {
 	pullFileFromNotion,
 	runWithConcurrency,
@@ -82,7 +85,7 @@ export default class NObsidian extends Plugin {
 		this.settings = Object.assign(
 			{},
 			DEFAULT_SETTINGS,
-			await this.loadData()
+			((await this.loadData()) as Partial<PluginSettings>)
 		);
 
 		// Register the sync side panel, ribbon icon, and opener command.
@@ -303,7 +306,7 @@ export default class NObsidian extends Plugin {
 
 	async getContent(file: TFile): Promise<MarkdownWithFrontMatter> {
 		const content = await this.app.vault.read(file);
-		const contentWithFrontMatter = yamlFrontMatter.loadFront(content);
+		const contentWithFrontMatter = parseFrontMatter(content);
 		return contentWithFrontMatter;
 	}
 

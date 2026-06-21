@@ -81,6 +81,19 @@ export const fromYamlFrontMatterToMarkdown = (
  * @param notionWorkspaceId
  * @returns
  */
+/**
+ * Parse a markdown file into its YAML front matter and body using the `yaml`
+ * package. Replaces yaml-front-matter, whose bundled js-yaml carried a
+ * vulnerability advisory.
+ */
+export const parseFrontMatter = (content: string): MarkdownWithFrontMatter => {
+	const match = /^---\r?\n([\s\S]*?)\r?\n---\r?\n?([\s\S]*)$/.exec(content);
+	if (!match) return { __content: content };
+
+	const parsed = yaml.parse(match[1]) as Record<string, unknown> | null;
+	return { ...(parsed ?? {}), __content: match[2] } as MarkdownWithFrontMatter;
+};
+
 export const updateNotionPageUrlWithWorkspaceId = (
 	notionPageUrl: string,
 	notionWorkspaceId: string

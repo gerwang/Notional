@@ -54,7 +54,7 @@ export type MarkdownWithFrontMatter = {
 };
 
 export type ServiceResult = {
-	data: any;
+	data: any; // eslint-disable-line @typescript-eslint/no-explicit-any
 	error: Error | null;
 };
 
