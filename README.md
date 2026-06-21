@@ -1,124 +1,123 @@
 # Notional
 
-Notional is a maintained fork of the abandoned Nobsidion plugin for syncing
-Obsidian notes with Notion pages.
+Sync Obsidian notes with Notion pages without turning your vault into a
+one-way export graveyard.
 
-The goal is a functional, usable, two-way sync tool that keeps Obsidian and
-Notion aligned without surprising overwrites — backed by timestamp-based
-conflict detection.
+Notional is a maintained Obsidian plugin for people who write in Markdown, live
+in Notion with teams or clients, and want the two worlds to stay connected. It
+started as a fork of the abandoned Nobsidion plugin; today it is being rebuilt
+into a practical, reviewable, two-way sync tool with explicit conflict handling
+and no silent overwrites.
 
-## Features
+[![Latest release](https://img.shields.io/github/v/release/bryanbans/Notional?label=release)](https://github.com/bryanbans/Notional/releases)
+[![CI](https://github.com/bryanbans/Notional/actions/workflows/ci.yml/badge.svg)](https://github.com/bryanbans/Notional/actions/workflows/ci.yml)
+[![License: GPL v3](https://img.shields.io/badge/license-GPLv3-blue.svg)](LICENSE)
+[![Obsidian](https://img.shields.io/badge/Obsidian-1.13.0%2B-7c3aed)](manifest.json)
 
-- **Sync side panel** — a dockable panel (ribbon icon or the `Open sync panel`
-  command) showing the active note's connection status, link state, last-synced
-  time, and whether each side has changed, with one-click Sync / Push / Pull,
-  explicit conflict resolution, and a rolling activity log.
-- Upload the current Obsidian note to Notion.
-- Upload the entire vault to Notion with bounded parallelism.
-- Create Notion pages for linked Obsidian notes when needed.
-- Convert Obsidian wiki-links into Notion internal page mentions.
-- Upload content with nested blocks deeper than Notion's two-level append
-  request limit.
-- Pull the current Notion page back into the linked Obsidian note.
-- Sync the current note in the direction implied by stored sync timestamps.
-- Stop before overwriting when both Notion and Obsidian changed since the last
-  recorded sync.
-- Optional automatic sync (experimental): push a linked note shortly after you
-  edit it and periodically pull the open note, with conflicts deferred to the
-  panel.
+> The point is not to make Notion replace Obsidian, or Obsidian replace Notion.
+> The point is to keep the same note understandable on both sides.
 
-## Status
+## What It Does
 
-`1.1.10` is the current release line (see [Installation](#installation)).
-Obsidian-to-Notion upload is the most mature path; the Notion-to-Obsidian
-pull/sync direction works but is conservative, and automatic sync is opt-in and
-experimental. Read [Current Limitations](#current-limitations) and test on
-throwaway notes before trusting it with important ones.
+| Capability | Status |
+| --- | --- |
+| Push the current note to Notion | Stable |
+| Push the whole vault with bounded parallelism | Stable |
+| Create Notion pages for linked notes | Stable |
+| Convert Obsidian wiki-links to Notion page mentions | Stable |
+| Upload deeply nested blocks past Notion's append limit | Stable |
+| Pull a linked Notion page back into Obsidian | Working, conservative |
+| Detect local-vs-remote conflicts | Working |
+| Automatic sync | Experimental, opt-in |
 
-## Quick start
+## The Sync Contract
 
-1. **Install** via BRAT (`bryanbans/Notional`, betas enabled) or by dropping the
-   release assets into your vault — see [Installation](#installation).
-2. **Connect Notion** in the plugin settings: paste your connection token and
-   click *Test*, share a Notion page with the connection, then paste that page's
-   link and click *Create* — see [Setup](#setup).
-3. **Sync a note**: open the sync panel (the **sync** ribbon icon) and click
-   **Push**.
+Notional is intentionally conservative:
 
-## Installation
+1. A note gets linked to a Notion page through YAML front matter.
+2. Push writes Markdown content into Notion blocks.
+3. Pull converts supported Notion blocks back into Markdown.
+4. Sync chooses a direction from timestamps.
+5. If both sides changed, Notional stops and asks you which side to keep.
 
-Notional is not yet in the Obsidian community plugin store. Install it one of
-two ways:
+No hidden merge magic. No background overwrite surprise. If the plugin is not
+confident, it pauses.
 
-**Via BRAT (recommended — handles updates)**
+## Quick Start
 
-1. Install the [BRAT](https://github.com/TfTHacker/obsidian42-brat) plugin.
-2. In BRAT, choose *Add Beta Plugin*, enter `bryanbans/Notional`, and allow
-   pre-releases so you receive betas.
-3. Enable **Notional** under *Community Plugins*.
+### 1. Install
 
-**Manual**
+Use BRAT while Notional is moving quickly:
 
-1. Download `main.js`, `manifest.json`, and `styles.css` from the latest
-   [release](https://github.com/bryanbans/Notional/releases).
-2. Copy them into `<vault>/.obsidian/plugins/notional/`.
-3. Reload Obsidian and enable **Notional** under *Community Plugins*.
+```text
+bryanbans/Notional
+```
 
-After enabling, open the plugin settings and follow the [Setup](#setup) steps.
+Or install manually from the latest release:
 
-## Sync panel
+```text
+<vault>/.obsidian/plugins/notional/
+  main.js
+  manifest.json
+  styles.css
+```
 
-Click the **sync** ribbon icon (or run `Open sync panel`) to dock the panel in
-the right sidebar. It always reflects the active note and lets you:
+Reload Obsidian, then enable Notional under Community Plugins.
 
-- See connection status and whether the note is linked to a Notion page.
-- See last-synced time and whether the local file and/or Notion page changed.
-- **Sync** (safe, direction inferred from timestamps), **Push** (overwrite the
-  Notion page), or **Pull** (update the note, stops on conflict).
-- Resolve conflicts explicitly with **Keep local → Notion** or
-  **Keep Notion → local**.
-- Review a rolling log of recent sync activity.
+### 2. Connect Notion
+
+In Settings -> Notional:
+
+1. Create a Notion connection at https://www.notion.so/my-integrations.
+2. Paste the connection token into Notional.
+3. Click Test connection.
+4. Share a Notion parent page with that connection.
+5. Paste the page link into Notional and click Create notes database.
+
+Notional creates the database for you. You do not need to hunt for a database
+ID unless you want to use an existing database manually.
+
+### 3. Sync a Note
+
+Open a Markdown note, then use either:
+
+- the sync ribbon icon
+- the Open sync panel command
+- the command palette actions listed below
+
+For a first run, use Push. After the note is linked, use Sync for the safer
+timestamp-based path.
 
 ## Commands
 
-Use Obsidian's command palette:
+| Command | What it does |
+| --- | --- |
+| Upload current note to Notion | Pushes the active file |
+| Upload entire vault to Notion | Pushes Markdown files with bounded concurrency |
+| Pull current note from Notion | Updates the active file from its linked Notion page |
+| Sync current note with Notion | Chooses push or pull from sync metadata |
+| Open sync panel | Opens the side panel for the active note |
 
-- `Upload current note to Notion`
-- `Upload entire vault to Notion`
-- `Pull current note from Notion`
-- `Sync current note with Notion`
-- `Open sync panel`
+## Sync Panel
 
-## Setup
+The side panel is the cockpit:
 
-Open **Settings → Notional** and follow the two steps:
+- linked or unlinked state
+- last local sync time
+- last Notion edit time
+- local-change and remote-change flags
+- one-click Sync, Push, and Pull
+- explicit conflict resolution
+- recent activity log
 
-1. **Connect to Notion.** Create a connection at
-   [notion.so/my-integrations](https://www.notion.so/my-integrations) (choose
-   *Access token*), paste its secret into **Notion API token**, and click
-   **Test** to confirm it works. Then open the Notion page you want to use and
-   share it with the connection (*••• → Connections*).
-2. **Choose where your notes go.** Paste the link of that shared page into
-   **Notion parent page link** and click **Create**. Notional creates a
-   database there and remembers it — no hunting for a database ID.
+When a conflict appears, Notional gives you two deliberate choices:
 
-Other settings:
+- Keep local: push Obsidian to Notion
+- Keep Notion: force-pull Notion to Obsidian
 
-- **Automatic sync (experimental)** — off by default. When on, a linked note is
-  pushed to Notion a few seconds after you stop editing it, and the open note is
-  periodically pulled. Conflicts are never auto-resolved — they surface in the
-  sync panel. **Poll interval (minutes)** controls how often the open note is
-  checked for Notion-side changes.
-- **Banner URL** — image URL used as a page banner.
-- **Notion Workspace ID** — formats share links as
-  `https://<workspace>.notion.site/`.
-- **Convert tags** — copy Obsidian tags into a Notion `Tags` column.
-- **Advanced → Database ID** — set manually to use an existing database instead
-  of creating one.
+## Metadata
 
-## Sync Metadata
-
-Notional stores Notion sync metadata in each note's YAML front matter:
+Notional stores its sync state in the note itself:
 
 ```yaml
 notionPageId: ...
@@ -127,58 +126,74 @@ notionLastEditedTime: ...
 obsidianLastSyncedAt: ...
 ```
 
-These fields let the plugin decide whether a Notion page changed, whether the
-local Obsidian file changed, and whether a pull or push would risk overwriting
-work.
+That makes the link portable with the file and keeps the current implementation
+easy to inspect. A dedicated sync-state store is on the roadmap for richer
+whole-vault automation.
+
+## Under The Hood
+
+```mermaid
+flowchart LR
+  A["Obsidian Markdown"] --> B["Front matter parser"]
+  B --> C["Wiki-link resolver"]
+  C --> D["Martian Markdown -> Notion blocks"]
+  D --> E["Recursive Notion append"]
+  E --> F["Notion page"]
+
+  F --> G["Notion block reader"]
+  G --> H["Block -> Markdown converter"]
+  H --> I["Conflict-aware file update"]
+  I --> A
+```
+
+The code is split around the sync pipeline:
+
+| File | Responsibility |
+| --- | --- |
+| `main.ts` | Plugin lifecycle, commands, vault file map, autosync wiring |
+| `view.ts` | Sync side panel and conflict actions |
+| `settingTab.ts` | Notion connection and setup UI |
+| `service/index.ts` | Upload, pull, sync orchestration |
+| `service/notion.ts` | Raw Notion REST calls and block conversion |
+| `service/utils.ts` | Front matter, wiki-link parsing, URL helpers |
+| `service/types.ts` | Shared settings and sync result types |
 
 ## Current Limitations
 
-- Notion-to-Obsidian conversion covers common blocks (paragraphs, headings,
-  lists, todos, quotes, code, dividers, images, tables, callouts, toggles,
-  equations, and media links). Anything else is flagged, not dropped (see
-  below).
-- Automatic sync is opt-in and scoped to the note you're working on (push on
-  edit, periodic pull of the open note); it is not a full continuous
-  whole-vault sync.
-- Conflict resolution is a "keep one side" choice (push or force-pull); there is
-  no line-level merge UI.
-- Notion blocks outside the supported subset are not converted, but they are
-  **not dropped silently**: each is replaced with a `> [!missing]` callout that
-  preserves any text and media URL, so you can see what didn't round-trip.
+- Pull conversion covers common blocks: paragraphs, headings, lists, todos,
+  quotes, code, dividers, images, tables, callouts, toggles, equations, and
+  media links.
+- Unsupported Notion blocks are flagged with a `> [!missing]` callout instead
+  of being dropped silently.
+- Automatic sync is currently scoped to the open note: push after edit, pull on
+  an interval, conflicts deferred to the panel.
+- Conflict handling is side-based. There is no line-level merge UI yet.
 
 ## Roadmap
 
-Recently landed:
+Recently shipped:
 
-- Parallel vault upload, deep block nesting, and wiki-link → Notion page
-  mentions.
-- Two-way sync foundation: pull/sync commands with timestamp conflict detection.
-- Sync side panel with one-click actions and explicit conflict resolution.
-- Guided setup: a *Test connection* button and auto-created notes database, so
-  you never copy a database ID by hand.
-- Wider Notion → Obsidian block coverage (tables, callouts, toggles, images,
-  equations, media), with unsupported blocks flagged instead of dropped.
-- Rate-limit/transient-error retry with backoff on all Notion requests.
-- Automatic sync (experimental, opt-in): push on edit + periodic pull of the
-  open note, deferring conflicts to the panel.
+- parallel vault upload
+- deep nested block append
+- wiki-links as Notion page mentions
+- pull and sync commands
+- timestamp conflict detection
+- guided setup with connection testing and database creation
+- sync side panel
+- opt-in automatic sync
+- Marketplace review cleanup for release `1.1.10`
 
-Planned, roughly in priority order:
+Next:
 
-- [ ] **One-click OAuth ("Connect to Notion")** — authorize in the browser and
-      pick pages with Notion's own picker, removing the token / sharing steps
-      entirely. Needs a small hosted token-exchange endpoint.
-- [ ] **Whole-vault background sync** — extend auto-sync beyond the open note to
-      all linked notes, safely and within rate limits.
-- [ ] A dedicated sync-state store instead of ad hoc front-matter fields.
-- [ ] Submit to the Obsidian community plugin store after a guideline audit.
-
-Have a request? Open an issue on
-[GitHub](https://github.com/bryanbans/Notional/issues).
+- one-click OAuth connection flow
+- whole-vault background sync for linked notes
+- dedicated sync-state store
+- richer pull conversion for edge-case Notion blocks
+- Obsidian community plugin submission
 
 ## Development
 
-Requires Node.js (the CI builds on Node 20). Install dependencies and run the
-checks:
+Requires Node.js. CI builds on Node 20.
 
 ```bash
 npm install
@@ -187,17 +202,16 @@ npm run lint
 npm test
 ```
 
-The build outputs `main.js`; releases bundle `main.js`, `manifest.json`, and
-`styles.css`. Tagging a commit whose name matches the `manifest.json` version
-(no `v` prefix) triggers the release workflow, which drafts a GitHub release
-with those assets.
+Release assets are `main.js`, `manifest.json`, and `styles.css`. Tagging a
+commit whose name matches the `manifest.json` version, without a `v` prefix,
+publishes a GitHub release with those assets.
 
 ## Acknowledgements
 
-This project is a fork of
+Notional is a maintained fork of the original Nobsidion work by
+[Quan Phan](https://github.com/quanphan2906), which itself traces back to
 [Obsidian to Notion](https://github.com/EasyChris/obsidian-to-notion/) by
-[EasyChris](https://github.com/EasyChris), with additional work from the
-original Nobsidion fork by Quan Phan.
+[EasyChris](https://github.com/EasyChris).
 
 ## License
 
