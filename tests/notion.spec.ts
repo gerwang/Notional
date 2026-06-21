@@ -13,6 +13,7 @@ const settings: PluginSettings = {
 	notionOAuthClientId: "",
 	notionOAuthRedirectUri: "",
 	notionOAuthTokenExchangeUrl: "",
+	notionOAuthAccessToken: "",
 	notionOAuthWorkspaceId: "",
 	notionOAuthWorkspaceName: "",
 	notionOAuthRefreshToken: "",

@@ -28,10 +28,7 @@ import {
 import NObsidian from "main";
 import { PluginSettings, StringKeys, BooleanKeys } from "./service/types";
 import notion from "./service/notion";
-import {
-	buildNotionOAuthUrl,
-	exchangeNotionOAuthCode,
-} from "./service/oauth";
+import { resolveNotionToken } from "./service/oauth";
 import { extractNotionId } from "./service/utils";
 
 export class NObsidianSettingTab extends PluginSettingTab {
@@ -114,36 +111,54 @@ export class NObsidianSettingTab extends PluginSettingTab {
 		});
 		this.renderOAuthStatus(oauthStatus);
 
+		// Re-render this tab when an OAuth callback completes while it is open.
+		this.plugin.oauthRefresh = () => this.update();
+
 		new Setting(containerEl)
 			.setName("Connect with Notion")
 			.setDesc(
-				"Opens Notion's OAuth page picker. Requires the Advanced OAuth fields below to point at a hosted token exchange endpoint."
+				"Opens Notion to pick the pages to share, then returns to Obsidian automatically. No secret leaves your device (PKCE)."
 			)
 			.addButton((button) =>
 				button
-					.setButtonText("Open Notion")
+					.setButtonText("Connect with Notion")
 					.setClass("mod-cta")
-					.onClick(() => {
-						const oauthUrl = this.getOAuthUrl(oauthStatus);
-						if (!oauthUrl) return;
-
-						window.open(oauthUrl, "_blank", "noopener,noreferrer");
+					.onClick(async () => {
+						if (!this.hasOAuthConfiguration()) {
+							this.setStatus(
+								oauthStatus,
+								false,
+								"Add the OAuth client ID and redirect URI under Advanced first."
+							);
+							return;
+						}
+						button.setDisabled(true);
+						const result = await this.plugin.startNotionOAuth();
+						button.setDisabled(false);
+						if (result.error) {
+							this.setStatus(
+								oauthStatus,
+								false,
+								result.error.message
+							);
+							return;
+						}
 						this.setStatus(
 							oauthStatus,
 							null,
-							"Approve access in Notion, then paste the callback URL or code below."
+							"Approve access in Notion — you'll be returned to Obsidian. If nothing happens, paste the callback URL below."
 						);
 					})
 			);
 
 		new Setting(containerEl)
-			.setName("OAuth callback URL or code")
+			.setName("Finish manually (fallback)")
 			.setDesc(
-				"After approving in Notion, paste the redirected URL or temporary code here."
+				"Only needed if Obsidian wasn't reopened automatically. Paste the redirected URL (or code) from your browser."
 			)
 			.addText((text) =>
 				text
-					.setPlaceholder("https://.../callback?code=... or code")
+					.setPlaceholder("https://.../oauth-callback.html?code=… or code")
 					.setValue(this.oauthCallbackInput)
 					.onChange((value) => {
 						this.oauthCallbackInput = value;
@@ -152,9 +167,8 @@ export class NObsidianSettingTab extends PluginSettingTab {
 			.addButton((button) =>
 				button.setButtonText("Finish OAuth").onClick(async () => {
 					button.setDisabled(true);
-					this.setStatus(oauthStatus, null, "Finishing OAuth...");
-					const result = await exchangeNotionOAuthCode(
-						this.plugin.settings,
+					this.setStatus(oauthStatus, null, "Finishing OAuth…");
+					const result = await this.plugin.finishNotionOAuthFromInput(
 						this.oauthCallbackInput
 					);
 					button.setDisabled(false);
@@ -164,15 +178,6 @@ export class NObsidianSettingTab extends PluginSettingTab {
 						return;
 					}
 
-					this.plugin.settings.notionAPIToken =
-						result.data.access_token;
-					this.plugin.settings.notionOAuthRefreshToken =
-						result.data.refresh_token || "";
-					this.plugin.settings.notionOAuthWorkspaceId =
-						result.data.workspace_id || "";
-					this.plugin.settings.notionOAuthWorkspaceName =
-						result.data.workspace_name || "";
-					await this.plugin.saveSettings();
 					this.oauthCallbackInput = "";
 					this.setStatus(
 						oauthStatus,
@@ -199,8 +204,12 @@ export class NObsidianSettingTab extends PluginSettingTab {
 			.setDesc("Check that the token can reach Notion.")
 			.addButton((button) =>
 				button.setButtonText("Test").onClick(async () => {
-					if (!this.plugin.settings.notionAPIToken) {
-						this.setStatus(status, false, "Enter a token first.");
+					if (!resolveNotionToken(this.plugin.settings)) {
+						this.setStatus(
+							status,
+							false,
+							"Connect with Notion or enter a token first."
+						);
 						return;
 					}
 					button.setDisabled(true);
@@ -237,7 +246,7 @@ export class NObsidianSettingTab extends PluginSettingTab {
 			this.setStatus(
 				el,
 				null,
-				"OAuth is configured. Open Notion to authorize selected pages."
+				"Ready to connect. Click “Connect with Notion” to authorize selected pages."
 			);
 			return;
 		}
@@ -245,7 +254,7 @@ export class NObsidianSettingTab extends PluginSettingTab {
 		this.setStatus(
 			el,
 			null,
-			"OAuth is not configured yet. Use the manual token field, or fill the Advanced OAuth fields."
+			"To use one-click connect, add the OAuth client ID under Advanced. Or paste a token below."
 		);
 	}
 
@@ -257,33 +266,12 @@ export class NObsidianSettingTab extends PluginSettingTab {
 	}
 
 	private hasOAuthConfiguration(): boolean {
-		const {
-			notionOAuthClientId,
-			notionOAuthRedirectUri,
-			notionOAuthTokenExchangeUrl,
-		} = this.plugin.settings;
+		const { notionOAuthClientId, notionOAuthRedirectUri } =
+			this.plugin.settings;
 
-		return Boolean(
-			notionOAuthClientId &&
-				notionOAuthRedirectUri &&
-				notionOAuthTokenExchangeUrl
-		);
-	}
-
-	private getOAuthUrl(status: HTMLElement): string | null {
-		if (!this.hasOAuthConfiguration()) {
-			this.setStatus(
-				status,
-				false,
-				"Fill OAuth client ID, redirect URI, and token exchange endpoint under Advanced first."
-			);
-			return null;
-		}
-
-		return buildNotionOAuthUrl(
-			this.plugin.settings.notionOAuthClientId,
-			this.plugin.settings.notionOAuthRedirectUri
-		);
+		// The token-exchange endpoint is optional: by default the PKCE flow
+		// talks to Notion directly with no secret.
+		return Boolean(notionOAuthClientId && notionOAuthRedirectUri);
 	}
 
 	private renderDatabaseSection(containerEl: HTMLElement): void {
@@ -400,7 +388,7 @@ export class NObsidianSettingTab extends PluginSettingTab {
 
 		this.createTextSetting(containerEl, {
 			name: "OAuth client ID",
-			desc: "Client ID from a Notion public connection.",
+			desc: "Client ID of the Notion public integration. Enables one-click connect (no secret needed — PKCE).",
 			placeholder: "xxxxxxxx-xxxx-xxxx-xxxx-xxxxxxxxxxxx",
 			settingKey: "notionOAuthClientId",
 			isPassword: false,
@@ -408,15 +396,15 @@ export class NObsidianSettingTab extends PluginSettingTab {
 
 		this.createTextSetting(containerEl, {
 			name: "OAuth redirect URI",
-			desc: "Redirect URI registered on the Notion public connection.",
-			placeholder: "https://example.com/notion/callback",
+			desc: "Redirect URI registered on the integration. The hosted page bounces the callback back into Obsidian. Defaults to the Notional redirect page.",
+			placeholder: "https://bryanbans.github.io/Notional/oauth-callback.html",
 			settingKey: "notionOAuthRedirectUri",
 			isPassword: false,
 		});
 
 		this.createTextSetting(containerEl, {
-			name: "OAuth token exchange endpoint",
-			desc: "Hosted endpoint that keeps the Notion client secret server-side and exchanges codes for tokens.",
+			name: "OAuth token exchange endpoint (optional)",
+			desc: "Leave blank to use PKCE (recommended, no secret). Only set this to route the exchange through a hosted endpoint that holds a client secret.",
 			placeholder: "https://example.com/api/notion/oauth/token",
 			settingKey: "notionOAuthTokenExchangeUrl",
 			isPassword: false,

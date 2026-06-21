@@ -22,6 +22,7 @@
 import {
 	App,
 	Notice,
+	ObsidianProtocolData,
 	Plugin,
 	PluginManifest,
 	TFile,
@@ -32,9 +33,16 @@ import {
 import {
 	PluginSettings,
 	MarkdownWithFrontMatter,
+	NotionOAuthTokenResponse,
 	ServiceResult,
 	BulkUploadFileResult,
 } from "service/types";
+import {
+	buildNotionOAuthUrl,
+	completeNotionOAuth,
+	createPkcePair,
+	generateOAuthState,
+} from "./service/oauth";
 import { NObsidianSettingTab } from "settingTab";
 import {
 	NoticeMessageConfig,
@@ -52,8 +60,9 @@ import { SyncView, VIEW_TYPE_SYNC } from "./view";
 const DEFAULT_SETTINGS: PluginSettings = {
 	notionAPIToken: "",
 	notionOAuthClientId: "",
-	notionOAuthRedirectUri: "",
+	notionOAuthRedirectUri: "https://bryanbans.github.io/Notional/oauth-callback.html",
 	notionOAuthTokenExchangeUrl: "",
+	notionOAuthAccessToken: "",
 	notionOAuthWorkspaceId: "",
 	notionOAuthWorkspaceName: "",
 	notionOAuthRefreshToken: "",
@@ -68,6 +77,10 @@ const DEFAULT_SETTINGS: PluginSettings = {
 
 const BULK_UPLOAD_CONCURRENCY = 3;
 
+// obsidian://notional-oauth?code=… — the static redirect page bounces the
+// Notion callback here so the connect flow stays inside Obsidian.
+const OAUTH_PROTOCOL_ACTION = "notional-oauth";
+
 export default class NObsidian extends Plugin {
 	settings: PluginSettings;
 	message: { [key: string]: string };
@@ -77,6 +90,13 @@ export default class NObsidian extends Plugin {
 	private conflictNotified: Set<string> = new Set();
 	private autoSyncDebouncers: Map<string, () => void> = new Map();
 	private lastAutoPoll = 0;
+
+	// In-flight OAuth: the PKCE verifier + CSRF state live only in memory for
+	// the duration of a single connect, never on disk.
+	private pendingOAuth: { codeVerifier: string; state: string } | null = null;
+	// Set by the settings tab so a callback that lands while it is open can
+	// re-render the connection status.
+	oauthRefresh: (() => void) | null = null;
 
 	constructor(app: App, manifest: PluginManifest) {
 		super(app, manifest);
@@ -107,8 +127,116 @@ export default class NObsidian extends Plugin {
 		// Wire up optional automatic background sync.
 		this.registerAutoSync();
 
+		// Capture the OAuth redirect (obsidian://notional-oauth?code=…) so the
+		// user never has to copy a code back into Obsidian by hand.
+		this.registerObsidianProtocolHandler(OAUTH_PROTOCOL_ACTION, (params) => {
+			void this.handleOAuthCallback(params);
+		});
+
 		// Add settings tab to plugin
 		this.addSettingTab(new NObsidianSettingTab(this.app, this));
+	}
+
+	/**
+	 * Begins the PKCE OAuth flow: generates a verifier/challenge + CSRF state,
+	 * remembers them in memory for the callback, and opens Notion's
+	 * authorization page. No client secret is involved and the verifier never
+	 * leaves this device.
+	 */
+	async startNotionOAuth(): Promise<ServiceResult<string>> {
+		const { notionOAuthClientId, notionOAuthRedirectUri } = this.settings;
+		if (!notionOAuthClientId || !notionOAuthRedirectUri) {
+			return {
+				data: "",
+				error: Error(
+					"Set the OAuth client ID and redirect URI under Advanced first."
+				),
+			};
+		}
+
+		const { codeVerifier, codeChallenge } = await createPkcePair();
+		const state = generateOAuthState();
+		this.pendingOAuth = { codeVerifier, state };
+
+		const url = buildNotionOAuthUrl({
+			clientId: notionOAuthClientId,
+			redirectUri: notionOAuthRedirectUri,
+			codeChallenge,
+			state,
+		});
+		window.open(url, "_blank", "noopener,noreferrer");
+		return { data: url, error: null };
+	}
+
+	/**
+	 * Completes OAuth from a pasted callback URL/code, using the verifier from
+	 * the in-progress connect. Used as a manual fallback when the protocol
+	 * handler does not fire (e.g. the redirect opened a different vault).
+	 */
+	async finishNotionOAuthFromInput(
+		input: string
+	): Promise<ServiceResult<NotionOAuthTokenResponse>> {
+		return this.completeOAuth(input, this.pendingOAuth?.codeVerifier ?? "");
+	}
+
+	private async handleOAuthCallback(
+		params: ObsidianProtocolData
+	): Promise<void> {
+		if (params.error) {
+			new Notice(`Notion authorization was declined: ${params.error}`);
+			return;
+		}
+
+		const pending = this.pendingOAuth;
+		if (!pending) {
+			new Notice(
+				"Received a Notion callback, but no connection was in progress. Start from Settings → Connect with Notion."
+			);
+			return;
+		}
+		if (params.state && params.state !== pending.state) {
+			new Notice(
+				"The Notion callback did not match the pending request. Please connect again."
+			);
+			return;
+		}
+		if (!params.code) {
+			new Notice("The Notion callback did not include an authorization code.");
+			return;
+		}
+
+		await this.completeOAuth(params.code, pending.codeVerifier);
+	}
+
+	private async completeOAuth(
+		codeOrCallbackUrl: string,
+		codeVerifier: string
+	): Promise<ServiceResult<NotionOAuthTokenResponse>> {
+		const result = await completeNotionOAuth(this.settings, {
+			codeOrCallbackUrl,
+			codeVerifier,
+		});
+		if (result.error) {
+			new Notice(`Notion connection failed: ${result.error.message}`);
+			return result;
+		}
+
+		const data = result.data;
+		this.settings.notionOAuthAccessToken = data.access_token;
+		this.settings.notionOAuthRefreshToken = data.refresh_token || "";
+		this.settings.notionOAuthWorkspaceId = data.workspace_id || "";
+		this.settings.notionOAuthWorkspaceName = data.workspace_name || "";
+		this.pendingOAuth = null;
+		await this.saveSettings();
+
+		const workspace = data.workspace_name;
+		new Notice(
+			workspace
+				? `Connected to Notion workspace “${workspace}”.`
+				: "Connected to Notion."
+		);
+		this.oauthRefresh?.();
+		return result;
 	}
 
 	async saveSettings() {

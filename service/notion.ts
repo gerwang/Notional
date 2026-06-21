@@ -28,6 +28,7 @@ import {
 	ServiceResult,
 } from "./types";
 import { getNotionPageMentionId } from "./utils";
+import { resolveNotionToken } from "./oauth";
 
 // Notion requires every request to pin an API version. Keep this current with
 // the latest stable release: https://developers.notion.com/reference/versioning
@@ -182,7 +183,7 @@ const appendBlockChildren = async (
 	blockId: string,
 	blocks: NotionBlock[]
 ): Promise<RequestUrlResponse> => {
-	const notionAPIToken = settings.notionAPIToken;
+	const notionAPIToken = resolveNotionToken(settings);
 
 	return notionRequest({
 		url: `https://api.notion.com/v1/blocks/${blockId}/children`,
@@ -235,7 +236,7 @@ const appendBlocksRecursively = async (
 };
 
 const getAuthHeaders = (settings: PluginSettings) => ({
-	Authorization: `Bearer ${settings.notionAPIToken}`,
+	Authorization: `Bearer ${resolveNotionToken(settings)}`,
 	"Notion-Version": NOTION_VERSION,
 });
 

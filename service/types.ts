@@ -23,6 +23,7 @@ export type PluginSettings = {
 	notionOAuthClientId: string;
 	notionOAuthRedirectUri: string;
 	notionOAuthTokenExchangeUrl: string;
+	notionOAuthAccessToken: string;
 	notionOAuthWorkspaceId: string;
 	notionOAuthWorkspaceName: string;
 	notionOAuthRefreshToken: string;

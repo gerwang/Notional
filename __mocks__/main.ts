@@ -12,6 +12,7 @@ class NObsidian {
 			notionOAuthClientId: "",
 			notionOAuthRedirectUri: "",
 			notionOAuthTokenExchangeUrl: "",
+			notionOAuthAccessToken: "",
 			notionOAuthWorkspaceId: "",
 			notionOAuthWorkspaceName: "",
 			notionOAuthRefreshToken: "",
