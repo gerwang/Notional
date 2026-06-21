@@ -1,5 +1,5 @@
 <p align="center">
-  <img src="docs/assets/notional-logo-horizontal-dark-final.png" alt="Notional" width="520">
+  <img src="https://raw.githubusercontent.com/bryanbans/Notional/main/docs/assets/notional-logo-horizontal-dark-final.png" alt="Notional" width="520">
 </p>
 
 <h3 align="center">Write in Obsidian. Share in Notion. Stop copy‑pasting between them.</h3>
