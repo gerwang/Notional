@@ -94,14 +94,22 @@ Reload Obsidian, then enable Notional under Community Plugins.
 
 In Settings -> Notional:
 
-1. Create a Notion connection at https://www.notion.so/my-integrations.
-2. Paste the connection token into Notional.
-3. Click Test connection.
-4. Share a Notion parent page with that connection.
-5. Paste the page link into Notional and click Create notes database.
+1. Use Connect with Notion if OAuth is configured. This opens Notion's page
+   picker, then exchanges the returned code through a hosted token endpoint.
+2. If OAuth is not configured yet, create a Notion connection at
+   https://www.notion.so/my-integrations.
+3. Paste the connection token into Notional.
+4. Click Test connection.
+5. Share a Notion parent page with that connection.
+6. Paste the page link into Notional and click Create notes database.
 
 Notional creates the database for you. You do not need to hunt for a database ID
 unless you want to use an existing database manually.
+
+OAuth note: Notion requires the OAuth client secret during token exchange, so
+the plugin cannot safely do that exchange by itself. Notional supports a
+configurable hosted exchange endpoint under Advanced -> OAuth; until that
+endpoint is deployed, the manual token flow remains the reliable path.
 
 ### 3. Sync a Note
 
@@ -199,6 +207,7 @@ The code is split around the sync pipeline:
 
 Recently shipped:
 
+- plugin-side Notion OAuth flow with configurable token exchange endpoint
 - scoped current-folder upload that avoids whole-vault file enumeration
 - deep nested block append
 - wiki-links as Notion page mentions
@@ -207,11 +216,11 @@ Recently shipped:
 - guided setup with connection testing and database creation
 - sync side panel
 - opt-in automatic sync
-- Marketplace review cleanup through release `1.1.12`
+- Marketplace review cleanup through release `1.1.13`
 
 Next:
 
-- one-click OAuth connection flow
+- hosted OAuth token exchange endpoint and public Notion connection
 - whole-vault background sync for linked notes
 - dedicated sync-state store
 - richer pull conversion for edge-case Notion blocks

@@ -9,6 +9,12 @@ class NObsidian {
 	constructor(app: App, manifest: PluginManifest) {
 		this.settings = {
 			notionAPIToken: "",
+			notionOAuthClientId: "",
+			notionOAuthRedirectUri: "",
+			notionOAuthTokenExchangeUrl: "",
+			notionOAuthWorkspaceId: "",
+			notionOAuthWorkspaceName: "",
+			notionOAuthRefreshToken: "",
 			databaseID: "",
 			notionParentPageUrl: "",
 			bannerUrl: "",

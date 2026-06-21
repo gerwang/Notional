@@ -28,10 +28,15 @@ import {
 import NObsidian from "main";
 import { PluginSettings, StringKeys, BooleanKeys } from "./service/types";
 import notion from "./service/notion";
+import {
+	buildNotionOAuthUrl,
+	exchangeNotionOAuthCode,
+} from "./service/oauth";
 import { extractNotionId } from "./service/utils";
 
 export class NObsidianSettingTab extends PluginSettingTab {
 	plugin: NObsidian;
+	private oauthCallbackInput = "";
 
 	constructor(app: App, plugin: NObsidian) {
 		super(app, plugin);
@@ -104,9 +109,82 @@ export class NObsidianSettingTab extends PluginSettingTab {
 			" (choose “Access token”), copy its secret below, then open the Notion page you want to use and share it with that connection (••• → Connections)."
 		);
 
+		const oauthStatus = containerEl.createEl("div", {
+			cls: "setting-item-description nob-setup-status",
+		});
+		this.renderOAuthStatus(oauthStatus);
+
+		new Setting(containerEl)
+			.setName("Connect with Notion")
+			.setDesc(
+				"Opens Notion's OAuth page picker. Requires the Advanced OAuth fields below to point at a hosted token exchange endpoint."
+			)
+			.addButton((button) =>
+				button
+					.setButtonText("Open Notion")
+					.setClass("mod-cta")
+					.onClick(() => {
+						const oauthUrl = this.getOAuthUrl(oauthStatus);
+						if (!oauthUrl) return;
+
+						window.open(oauthUrl, "_blank", "noopener,noreferrer");
+						this.setStatus(
+							oauthStatus,
+							null,
+							"Approve access in Notion, then paste the callback URL or code below."
+						);
+					})
+			);
+
+		new Setting(containerEl)
+			.setName("OAuth callback URL or code")
+			.setDesc(
+				"After approving in Notion, paste the redirected URL or temporary code here."
+			)
+			.addText((text) =>
+				text
+					.setPlaceholder("https://.../callback?code=... or code")
+					.setValue(this.oauthCallbackInput)
+					.onChange((value) => {
+						this.oauthCallbackInput = value;
+					})
+			)
+			.addButton((button) =>
+				button.setButtonText("Finish OAuth").onClick(async () => {
+					button.setDisabled(true);
+					this.setStatus(oauthStatus, null, "Finishing OAuth...");
+					const result = await exchangeNotionOAuthCode(
+						this.plugin.settings,
+						this.oauthCallbackInput
+					);
+					button.setDisabled(false);
+
+					if (result.error) {
+						this.setStatus(oauthStatus, false, result.error.message);
+						return;
+					}
+
+					this.plugin.settings.notionAPIToken =
+						result.data.access_token;
+					this.plugin.settings.notionOAuthRefreshToken =
+						result.data.refresh_token || "";
+					this.plugin.settings.notionOAuthWorkspaceId =
+						result.data.workspace_id || "";
+					this.plugin.settings.notionOAuthWorkspaceName =
+						result.data.workspace_name || "";
+					await this.plugin.saveSettings();
+					this.oauthCallbackInput = "";
+					this.setStatus(
+						oauthStatus,
+						true,
+						this.oauthConnectedMessage()
+					);
+				})
+			);
+
 		this.createTextSetting(containerEl, {
 			name: "Notion API token",
-			desc: "The internal integration secret from your Notion connection.",
+			desc: "Manual fallback: paste an internal integration secret or OAuth access token.",
 			placeholder: "ntn_…",
 			settingKey: "notionAPIToken",
 			isPassword: true,
@@ -147,6 +225,65 @@ export class NObsidianSettingTab extends PluginSettingTab {
 					);
 				})
 			);
+	}
+
+	private renderOAuthStatus(el: HTMLElement): void {
+		if (this.plugin.settings.notionOAuthWorkspaceName) {
+			this.setStatus(el, true, this.oauthConnectedMessage());
+			return;
+		}
+
+		if (this.hasOAuthConfiguration()) {
+			this.setStatus(
+				el,
+				null,
+				"OAuth is configured. Open Notion to authorize selected pages."
+			);
+			return;
+		}
+
+		this.setStatus(
+			el,
+			null,
+			"OAuth is not configured yet. Use the manual token field, or fill the Advanced OAuth fields."
+		);
+	}
+
+	private oauthConnectedMessage(): string {
+		const workspace = this.plugin.settings.notionOAuthWorkspaceName;
+		return workspace
+			? `OAuth connected to ${workspace}.`
+			: "OAuth connected.";
+	}
+
+	private hasOAuthConfiguration(): boolean {
+		const {
+			notionOAuthClientId,
+			notionOAuthRedirectUri,
+			notionOAuthTokenExchangeUrl,
+		} = this.plugin.settings;
+
+		return Boolean(
+			notionOAuthClientId &&
+				notionOAuthRedirectUri &&
+				notionOAuthTokenExchangeUrl
+		);
+	}
+
+	private getOAuthUrl(status: HTMLElement): string | null {
+		if (!this.hasOAuthConfiguration()) {
+			this.setStatus(
+				status,
+				false,
+				"Fill OAuth client ID, redirect URI, and token exchange endpoint under Advanced first."
+			);
+			return null;
+		}
+
+		return buildNotionOAuthUrl(
+			this.plugin.settings.notionOAuthClientId,
+			this.plugin.settings.notionOAuthRedirectUri
+		);
 	}
 
 	private renderDatabaseSection(containerEl: HTMLElement): void {
@@ -256,6 +393,32 @@ export class NObsidianSettingTab extends PluginSettingTab {
 			desc: "Used to format share links as https://<workspace>.notion.site/",
 			placeholder: "Enter Notion ID",
 			settingKey: "notionWorkspaceID",
+			isPassword: false,
+		});
+
+		new Setting(containerEl).setName("OAuth").setHeading();
+
+		this.createTextSetting(containerEl, {
+			name: "OAuth client ID",
+			desc: "Client ID from a Notion public connection.",
+			placeholder: "xxxxxxxx-xxxx-xxxx-xxxx-xxxxxxxxxxxx",
+			settingKey: "notionOAuthClientId",
+			isPassword: false,
+		});
+
+		this.createTextSetting(containerEl, {
+			name: "OAuth redirect URI",
+			desc: "Redirect URI registered on the Notion public connection.",
+			placeholder: "https://example.com/notion/callback",
+			settingKey: "notionOAuthRedirectUri",
+			isPassword: false,
+		});
+
+		this.createTextSetting(containerEl, {
+			name: "OAuth token exchange endpoint",
+			desc: "Hosted endpoint that keeps the Notion client secret server-side and exchanges codes for tokens.",
+			placeholder: "https://example.com/api/notion/oauth/token",
+			settingKey: "notionOAuthTokenExchangeUrl",
 			isPassword: false,
 		});
 

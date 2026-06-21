@@ -10,6 +10,12 @@ import { PluginSettings } from "../service/types";
 
 const settings: PluginSettings = {
 	notionAPIToken: "secret",
+	notionOAuthClientId: "",
+	notionOAuthRedirectUri: "",
+	notionOAuthTokenExchangeUrl: "",
+	notionOAuthWorkspaceId: "",
+	notionOAuthWorkspaceName: "",
+	notionOAuthRefreshToken: "",
 	databaseID: "database-id",
 	notionParentPageUrl: "",
 	bannerUrl: "",

@@ -20,6 +20,12 @@
 
 export type PluginSettings = {
 	notionAPIToken: string;
+	notionOAuthClientId: string;
+	notionOAuthRedirectUri: string;
+	notionOAuthTokenExchangeUrl: string;
+	notionOAuthWorkspaceId: string;
+	notionOAuthWorkspaceName: string;
+	notionOAuthRefreshToken: string;
 	databaseID: string;
 	// Link to a shared Notion page; used to auto-create the notes database.
 	notionParentPageUrl: string;
@@ -87,4 +93,12 @@ export type NotionPage = Record<string, unknown> & {
 export type NotionPageMarkdown = {
 	page: NotionPage;
 	markdown: string;
+};
+
+export type NotionOAuthTokenResponse = {
+	access_token: string;
+	refresh_token?: string | null;
+	workspace_id?: string | null;
+	workspace_name?: string | null;
+	duplicated_template_id?: string | null;
 };

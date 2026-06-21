@@ -51,6 +51,12 @@ import { SyncView, VIEW_TYPE_SYNC } from "./view";
 // Define your default settings
 const DEFAULT_SETTINGS: PluginSettings = {
 	notionAPIToken: "",
+	notionOAuthClientId: "",
+	notionOAuthRedirectUri: "",
+	notionOAuthTokenExchangeUrl: "",
+	notionOAuthWorkspaceId: "",
+	notionOAuthWorkspaceName: "",
+	notionOAuthRefreshToken: "",
 	databaseID: "",
 	notionParentPageUrl: "",
 	bannerUrl: "",
