@@ -79,10 +79,15 @@ const parseTokenResponse = (
 	status: number
 ): ServiceResult<NotionOAuthTokenResponse> => {
 	if (status >= 400) {
-		const body = json as { error?: string; message?: string } | null;
+		const body = json as {
+			error?: string;
+			error_description?: string;
+			message?: string;
+		} | null;
 		return errorResult(
 			Error(
-				body?.message ||
+				body?.error_description ||
+					body?.message ||
 					body?.error ||
 					`OAuth exchange failed with status ${status}`
 			),
