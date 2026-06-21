@@ -21,6 +21,7 @@
 export type PluginSettings = {
 	notionAPIToken: string;
 	notionOAuthClientId: string;
+	notionOAuthClientSecret: string;
 	notionOAuthRedirectUri: string;
 	notionOAuthTokenExchangeUrl: string;
 	notionOAuthAccessToken: string;

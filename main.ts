@@ -40,7 +40,6 @@ import {
 import {
 	buildNotionOAuthUrl,
 	completeNotionOAuth,
-	createPkcePair,
 	generateOAuthState,
 } from "./service/oauth";
 import { NObsidianSettingTab } from "settingTab";
@@ -60,6 +59,7 @@ import { SyncView, VIEW_TYPE_SYNC } from "./view";
 const DEFAULT_SETTINGS: PluginSettings = {
 	notionAPIToken: "",
 	notionOAuthClientId: "",
+	notionOAuthClientSecret: "",
 	notionOAuthRedirectUri: "https://bryanbans.github.io/Notional/oauth-callback.html",
 	notionOAuthTokenExchangeUrl: "",
 	notionOAuthAccessToken: "",
@@ -91,9 +91,9 @@ export default class NObsidian extends Plugin {
 	private autoSyncDebouncers: Map<string, () => void> = new Map();
 	private lastAutoPoll = 0;
 
-	// In-flight OAuth: the PKCE verifier + CSRF state live only in memory for
-	// the duration of a single connect, never on disk.
-	private pendingOAuth: { codeVerifier: string; state: string } | null = null;
+	// In-flight OAuth: the CSRF state lives only in memory for the duration of
+	// a single connect, never on disk.
+	private pendingOAuthState: string | null = null;
 	// Set by the settings tab so a callback that lands while it is open can
 	// re-render the connection status.
 	oauthRefresh: (() => void) | null = null;
@@ -138,12 +138,10 @@ export default class NObsidian extends Plugin {
 	}
 
 	/**
-	 * Begins the PKCE OAuth flow: generates a verifier/challenge + CSRF state,
-	 * remembers them in memory for the callback, and opens Notion's
-	 * authorization page. No client secret is involved and the verifier never
-	 * leaves this device.
+	 * Begins the OAuth flow: generates a CSRF state, remembers it in memory for
+	 * the callback, and opens Notion's authorization page.
 	 */
-	async startNotionOAuth(): Promise<ServiceResult<string>> {
+	startNotionOAuth(): ServiceResult<string> {
 		const { notionOAuthClientId, notionOAuthRedirectUri } = this.settings;
 		if (!notionOAuthClientId || !notionOAuthRedirectUri) {
 			return {
@@ -154,14 +152,12 @@ export default class NObsidian extends Plugin {
 			};
 		}
 
-		const { codeVerifier, codeChallenge } = await createPkcePair();
 		const state = generateOAuthState();
-		this.pendingOAuth = { codeVerifier, state };
+		this.pendingOAuthState = state;
 
 		const url = buildNotionOAuthUrl({
 			clientId: notionOAuthClientId,
 			redirectUri: notionOAuthRedirectUri,
-			codeChallenge,
 			state,
 		});
 		window.open(url, "_blank", "noopener,noreferrer");
@@ -169,14 +165,14 @@ export default class NObsidian extends Plugin {
 	}
 
 	/**
-	 * Completes OAuth from a pasted callback URL/code, using the verifier from
-	 * the in-progress connect. Used as a manual fallback when the protocol
-	 * handler does not fire (e.g. the redirect opened a different vault).
+	 * Completes OAuth from a pasted callback URL/code. Used as a manual fallback
+	 * when the protocol handler does not fire (e.g. the redirect opened a
+	 * different vault).
 	 */
 	async finishNotionOAuthFromInput(
 		input: string
 	): Promise<ServiceResult<NotionOAuthTokenResponse>> {
-		return this.completeOAuth(input, this.pendingOAuth?.codeVerifier ?? "");
+		return this.completeOAuth(input);
 	}
 
 	private async handleOAuthCallback(
@@ -187,14 +183,11 @@ export default class NObsidian extends Plugin {
 			return;
 		}
 
-		const pending = this.pendingOAuth;
-		if (!pending) {
-			new Notice(
-				"Received a Notion callback, but no connection was in progress. Start from Settings → Connect with Notion."
-			);
-			return;
-		}
-		if (params.state && params.state !== pending.state) {
+		if (
+			params.state &&
+			this.pendingOAuthState &&
+			params.state !== this.pendingOAuthState
+		) {
 			new Notice(
 				"The Notion callback did not match the pending request. Please connect again."
 			);
@@ -205,17 +198,16 @@ export default class NObsidian extends Plugin {
 			return;
 		}
 
-		await this.completeOAuth(params.code, pending.codeVerifier);
+		await this.completeOAuth(params.code);
 	}
 
 	private async completeOAuth(
-		codeOrCallbackUrl: string,
-		codeVerifier: string
+		codeOrCallbackUrl: string
 	): Promise<ServiceResult<NotionOAuthTokenResponse>> {
-		const result = await completeNotionOAuth(this.settings, {
-			codeOrCallbackUrl,
-			codeVerifier,
-		});
+		const result = await completeNotionOAuth(
+			this.settings,
+			codeOrCallbackUrl
+		);
 		if (result.error) {
 			new Notice(`Notion connection failed: ${result.error.message}`);
 			return result;
@@ -226,7 +218,7 @@ export default class NObsidian extends Plugin {
 		this.settings.notionOAuthRefreshToken = data.refresh_token || "";
 		this.settings.notionOAuthWorkspaceId = data.workspace_id || "";
 		this.settings.notionOAuthWorkspaceName = data.workspace_name || "";
-		this.pendingOAuth = null;
+		this.pendingOAuthState = null;
 		await this.saveSettings();
 
 		const workspace = data.workspace_name;

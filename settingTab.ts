@@ -117,13 +117,13 @@ export class NObsidianSettingTab extends PluginSettingTab {
 		new Setting(containerEl)
 			.setName("Connect with Notion")
 			.setDesc(
-				"Opens Notion to pick the pages to share, then returns to Obsidian automatically. No secret leaves your device (PKCE)."
+				"Opens Notion to pick the pages to share, then returns to Obsidian automatically. Your client secret stays on this device — nothing is sent to any server but Notion."
 			)
 			.addButton((button) =>
 				button
 					.setButtonText("Connect with Notion")
 					.setClass("mod-cta")
-					.onClick(async () => {
+					.onClick(() => {
 						if (!this.hasOAuthConfiguration()) {
 							this.setStatus(
 								oauthStatus,
@@ -132,9 +132,7 @@ export class NObsidianSettingTab extends PluginSettingTab {
 							);
 							return;
 						}
-						button.setDisabled(true);
-						const result = await this.plugin.startNotionOAuth();
-						button.setDisabled(false);
+						const result = this.plugin.startNotionOAuth();
 						if (result.error) {
 							this.setStatus(
 								oauthStatus,
@@ -388,10 +386,18 @@ export class NObsidianSettingTab extends PluginSettingTab {
 
 		this.createTextSetting(containerEl, {
 			name: "OAuth client ID",
-			desc: "Client ID of the Notion public integration. Enables one-click connect (no secret needed — PKCE).",
+			desc: "Client ID of your Notion OAuth integration (notion.so/profile/integrations → New connection → OAuth).",
 			placeholder: "xxxxxxxx-xxxx-xxxx-xxxx-xxxxxxxxxxxx",
 			settingKey: "notionOAuthClientId",
 			isPassword: false,
+		});
+
+		this.createTextSetting(containerEl, {
+			name: "OAuth client secret",
+			desc: "Secret from the same integration. Stored only on this device and sent only to Notion to complete sign-in.",
+			placeholder: "secret_…",
+			settingKey: "notionOAuthClientSecret",
+			isPassword: true,
 		});
 
 		this.createTextSetting(containerEl, {
@@ -404,7 +410,7 @@ export class NObsidianSettingTab extends PluginSettingTab {
 
 		this.createTextSetting(containerEl, {
 			name: "OAuth token exchange endpoint (optional)",
-			desc: "Leave blank to use PKCE (recommended, no secret). Only set this to route the exchange through a hosted endpoint that holds a client secret.",
+			desc: "Leave blank to exchange directly with Notion using your client secret (recommended). Only set this to route the exchange through a hosted endpoint that holds the secret instead.",
 			placeholder: "https://example.com/api/notion/oauth/token",
 			settingKey: "notionOAuthTokenExchangeUrl",
 			isPassword: false,

@@ -10,6 +10,7 @@ class NObsidian {
 		this.settings = {
 			notionAPIToken: "",
 			notionOAuthClientId: "",
+			notionOAuthClientSecret: "",
 			notionOAuthRedirectUri: "",
 			notionOAuthTokenExchangeUrl: "",
 			notionOAuthAccessToken: "",

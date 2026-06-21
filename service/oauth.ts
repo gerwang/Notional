@@ -8,10 +8,10 @@ import {
 export const NOTION_OAUTH_AUTHORIZE_URL =
 	"https://api.notion.com/v1/oauth/authorize";
 
-// Notion's token endpoint. With PKCE the plugin posts here directly from the
-// user's machine, so no client secret is ever stored in or distributed with
-// the plugin. A hosted exchange endpoint is only used as a fallback when the
-// user explicitly configures one (settings.notionOAuthTokenExchangeUrl).
+// Notion's token endpoint requires the client to authenticate with its secret
+// (HTTP Basic). In the default "bring your own integration" flow the user's own
+// client secret lives only in their local vault, so the exchange happens
+// directly device-to-Notion with no developer-operated server in between.
 export const NOTION_OAUTH_TOKEN_URL = "https://api.notion.com/v1/oauth/token";
 
 const errorResult = <T>(error: Error, data: unknown = null): ServiceResult<T> => ({
@@ -24,7 +24,6 @@ const errorResult = <T>(error: Error, data: unknown = null): ServiceResult<T> =>
 export const resolveNotionToken = (settings: PluginSettings): string =>
 	settings.notionOAuthAccessToken || settings.notionAPIToken;
 
-const BASE64URL_UNRESERVED = /[+/=]/g;
 const BASE64URL_REPLACEMENTS: Record<string, string> = {
 	"+": "-",
 	"/": "_",
@@ -36,35 +35,10 @@ const base64UrlEncode = (bytes: Uint8Array): string => {
 	for (const byte of bytes) {
 		binary += String.fromCharCode(byte);
 	}
-	return btoa(binary).replace(
-		BASE64URL_UNRESERVED,
-		(match) => BASE64URL_REPLACEMENTS[match]
-	);
+	return btoa(binary).replace(/[+/=]/g, (match) => BASE64URL_REPLACEMENTS[match]);
 };
 
-// PKCE (RFC 7636) lets a public client prove it started the flow without a
-// secret. The verifier stays on the device; only its SHA-256 challenge travels
-// in the authorize URL.
-export type PkcePair = {
-	codeVerifier: string;
-	codeChallenge: string;
-};
-
-export const createPkcePair = async (): Promise<PkcePair> => {
-	const randomBytes = new Uint8Array(64);
-	crypto.getRandomValues(randomBytes);
-	const codeVerifier = base64UrlEncode(randomBytes);
-
-	const digest = await crypto.subtle.digest(
-		"SHA-256",
-		new TextEncoder().encode(codeVerifier)
-	);
-	const codeChallenge = base64UrlEncode(new Uint8Array(digest));
-
-	return { codeVerifier, codeChallenge };
-};
-
-// Opaque value echoed back via the redirect; guards against CSRF / stray
+// Opaque value echoed back via the redirect; guards against CSRF and stray
 // callbacks landing on the wrong in-flight request.
 export const generateOAuthState = (): string => {
 	const randomBytes = new Uint8Array(16);
@@ -75,7 +49,6 @@ export const generateOAuthState = (): string => {
 export type BuildOAuthUrlOptions = {
 	clientId: string;
 	redirectUri: string;
-	codeChallenge?: string;
 	state?: string;
 };
 
@@ -85,10 +58,6 @@ export const buildNotionOAuthUrl = (options: BuildOAuthUrlOptions): string => {
 	url.searchParams.set("client_id", options.clientId);
 	url.searchParams.set("redirect_uri", options.redirectUri);
 	url.searchParams.set("response_type", "code");
-	if (options.codeChallenge) {
-		url.searchParams.set("code_challenge", options.codeChallenge);
-		url.searchParams.set("code_challenge_method", "S256");
-	}
 	if (options.state) url.searchParams.set("state", options.state);
 	return url.toString();
 };
@@ -141,19 +110,15 @@ const parseTokenResponse = (
 	};
 };
 
-export type CompleteOAuthOptions = {
-	codeOrCallbackUrl: string;
-	codeVerifier: string;
-};
-
-// Completes the authorization-code exchange. Default path: PKCE directly to
-// Notion (no secret, nothing leaves the device except to Notion). Fallback:
-// post to a user-configured hosted endpoint that holds a client secret.
+// Completes the authorization-code exchange. Default path: the user's own
+// client secret authenticates the request directly to Notion (nothing leaves
+// the device except to Notion). Fallback: post to a user-configured hosted
+// endpoint that holds the secret server-side.
 export const completeNotionOAuth = async (
 	settings: PluginSettings,
-	options: CompleteOAuthOptions
+	codeOrCallbackUrl: string
 ): Promise<ServiceResult<NotionOAuthTokenResponse>> => {
-	const code = extractNotionOAuthCode(options.codeOrCallbackUrl);
+	const code = extractNotionOAuthCode(codeOrCallbackUrl);
 	if (!code) {
 		return errorResult(Error("Paste the Notion callback URL or code."));
 	}
@@ -163,27 +128,25 @@ export const completeNotionOAuth = async (
 		return exchangeViaHostedEndpoint(settings, endpoint, code);
 	}
 
-	if (!settings.notionOAuthClientId) {
-		return errorResult(
-			Error("Set the OAuth client ID before connecting.")
-		);
-	}
-	if (!options.codeVerifier) {
+	if (!settings.notionOAuthClientId || !settings.notionOAuthClientSecret) {
 		return errorResult(
 			Error(
-				"Missing PKCE verifier. Start the connection from \"Connect with Notion\" again."
+				"Set the OAuth client ID and client secret (or a token exchange endpoint) before connecting."
 			)
 		);
 	}
 
-	return exchangeViaPkce(settings, code, options.codeVerifier);
+	return exchangeViaClientSecret(settings, code);
 };
 
-const exchangeViaPkce = async (
+const exchangeViaClientSecret = async (
 	settings: PluginSettings,
-	code: string,
-	codeVerifier: string
+	code: string
 ): Promise<ServiceResult<NotionOAuthTokenResponse>> => {
+	const basic = btoa(
+		`${settings.notionOAuthClientId}:${settings.notionOAuthClientSecret}`
+	);
+
 	try {
 		const response = await requestUrl({
 			url: NOTION_OAUTH_TOKEN_URL,
@@ -192,13 +155,12 @@ const exchangeViaPkce = async (
 			headers: {
 				"Content-Type": "application/json",
 				Accept: "application/json",
+				Authorization: `Basic ${basic}`,
 			},
 			body: JSON.stringify({
 				grant_type: "authorization_code",
 				code,
 				redirect_uri: settings.notionOAuthRedirectUri,
-				client_id: settings.notionOAuthClientId,
-				code_verifier: codeVerifier,
 			}),
 		});
 
