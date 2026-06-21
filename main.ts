@@ -127,14 +127,22 @@ export default class NObsidian extends Plugin {
 		// Wire up optional automatic background sync.
 		this.registerAutoSync();
 
+		// Add settings tab to plugin (before optional wiring, so a failure in
+		// later registration can never leave the settings pane blank).
+		this.addSettingTab(new NObsidianSettingTab(this.app, this));
+
 		// Capture the OAuth redirect (obsidian://notional-oauth?code=…) so the
 		// user never has to copy a code back into Obsidian by hand.
-		this.registerObsidianProtocolHandler(OAUTH_PROTOCOL_ACTION, (params) => {
-			void this.handleOAuthCallback(params);
-		});
-
-		// Add settings tab to plugin
-		this.addSettingTab(new NObsidianSettingTab(this.app, this));
+		try {
+			this.registerObsidianProtocolHandler(
+				OAUTH_PROTOCOL_ACTION,
+				(params) => {
+					void this.handleOAuthCallback(params);
+				}
+			);
+		} catch (error) {
+			console.error("Notional: could not register OAuth protocol handler", error);
+		}
 	}
 
 	/**

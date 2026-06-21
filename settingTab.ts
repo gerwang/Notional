@@ -40,18 +40,27 @@ export class NObsidianSettingTab extends PluginSettingTab {
 		this.plugin = plugin;
 	}
 
+	// Return empty so Obsidian falls back to display() below, which renders our
+	// custom UI reliably across Obsidian versions. (The declarative
+	// getSettingDefinitions custom-render path did not invoke our renderer.)
 	getSettingDefinitions(): SettingDefinitionItem[] {
-		return [
-			{
-				name: "Notional settings",
-				searchable: false,
-				render: (setting) => {
-					const containerEl = setting.settingEl;
-					containerEl.empty();
-					this.renderSettings(containerEl);
-				},
-			},
-		];
+		return [];
+	}
+
+	display(): void {
+		const { containerEl } = this;
+		containerEl.empty();
+		try {
+			this.renderSettings(containerEl);
+		} catch (error) {
+			console.error("Notional settings render error", error);
+			containerEl.createEl("p", {
+				cls: "setting-item-description nob-status-bad",
+				text: `Notional settings failed to render: ${
+					error instanceof Error ? error.message : String(error)
+				}`,
+			});
+		}
 	}
 
 	private renderSettings(containerEl: HTMLElement): void {
