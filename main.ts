@@ -21,10 +21,12 @@
 
 import {
 	App,
+	Modal,
 	Notice,
 	ObsidianProtocolData,
 	Plugin,
 	PluginManifest,
+	Setting,
 	TFile,
 	TFolder,
 } from "obsidian";
@@ -48,10 +50,64 @@ import {
 } from "service/utils";
 import { uploadFile } from "service";
 import {
+	collectPublishedInboundLinks,
 	preflightPublication,
 	publishFiles,
 	publishLinkedClosure,
+	republishPublishedFiles,
 } from "./service/publisher";
+
+class ConfirmInboundRepairModal extends Modal {
+	private confirmed = false;
+
+	constructor(
+		app: App,
+		private target: TFile,
+		private files: TFile[],
+		private warningCount: number,
+		private resolveDecision: (confirmed: boolean) => void
+	) {
+		super(app);
+	}
+
+	onOpen() {
+		this.setTitle("Repair published links?");
+		this.contentEl.createEl("p", {
+			text: `This will republish ${this.files.length} existing Notion ${
+				this.files.length === 1 ? "page" : "pages"
+			} that link to ${this.target.basename}. Page IDs remain unchanged, and unpublished notes will not be created.`,
+		});
+		if (this.warningCount > 0) {
+			this.contentEl.createEl("p", {
+				text: `Preflight also reported ${this.warningCount} ${
+					this.warningCount === 1 ? "warning" : "warnings"
+				} for these notes. Review the developer console for details.`,
+				cls: "nob-warn",
+			});
+		}
+		const list = this.contentEl.createEl("ul");
+		for (const file of this.files) list.createEl("li", { text: file.path });
+
+		new Setting(this.contentEl)
+			.addButton((button) =>
+				button.setButtonText("Cancel").onClick(() => this.close())
+			)
+			.addButton((button) =>
+				button
+					.setButtonText("Repair links")
+					.setCta()
+					.onClick(() => {
+						this.confirmed = true;
+						this.close();
+					})
+			);
+	}
+
+	onClose() {
+		this.contentEl.empty();
+		this.resolveDecision(this.confirmed);
+	}
+}
 
 // Define your default settings
 const DEFAULT_SETTINGS: PluginSettings = {
@@ -270,6 +326,78 @@ export default class NObsidian extends Plugin {
 				void this.publishCurrentNoteClosure();
 			},
 		});
+
+		this.addCommand({
+			id: "repair-published-inbound-links",
+			name: "Repair published links to current note",
+			editorCallback: async () => {
+				void this.repairPublishedInboundLinks();
+			},
+		});
+	}
+
+	async repairPublishedInboundLinks() {
+		if (!this.hasValidNotionCredentials()) {
+			new Notice(this.message["config-settings"]);
+			return;
+		}
+		const target = this.app.workspace.getActiveFile();
+		if (!target) {
+			new Notice(this.message["open-file"]);
+			return;
+		}
+
+		const collected = await collectPublishedInboundLinks(this, target);
+		if (collected.error) {
+			new Notice(`Link repair failed: ${collected.error.message}`, 10000);
+			return;
+		}
+		if (collected.data.length === 0) {
+			new Notice(`No published notes link to ${target.basename}.`, 6000);
+			return;
+		}
+
+		let warningCount = 0;
+		for (const file of collected.data) {
+			const preflight = await preflightPublication(this, file);
+			if (preflight.error) {
+				new Notice(
+					`Link repair preflight failed for ${file.path}: ${preflight.error.message}`,
+					10000
+				);
+				return;
+			}
+			warningCount += preflight.data.warnings.length;
+			if (preflight.data.warnings.length) {
+				console.warn(
+					`Notional publication warnings for ${file.path}`,
+					preflight.data.warnings
+				);
+			}
+		}
+
+		const confirmed = await new Promise<boolean>((resolve) => {
+			new ConfirmInboundRepairModal(
+				this.app,
+				target,
+				collected.data,
+				warningCount,
+				resolve
+			).open();
+		});
+		if (!confirmed) return;
+
+		const result = await republishPublishedFiles(this, collected.data);
+		if (result.error) {
+			new Notice(`Link repair failed: ${result.error.message}`, 10000);
+			return;
+		}
+		new Notice(
+			`Repaired links in ${result.data.length} published ${
+				result.data.length === 1 ? "note" : "notes"
+			}.`,
+			8000
+		);
 	}
 
 	async preflightCurrentNote() {

@@ -43,6 +43,9 @@ After explicit authorization, select the narrowest plugin command:
 - **Publish current note to Notion** for one page.
 - **Publish current folder to Notion** for a recursive folder selection.
 - **Publish current note and linked notes recursively** for a linked-note closure.
+- **Repair published links to current note** after publishing a formerly
+  unpublished target. It only republishes already-published inbound-link sources
+  and asks for confirmation before writing.
 
 The publisher uploads assets first, compiles Notion blocks, verifies an existing
 page, then reconciles blocks in place. Compatible and unchanged blocks retain

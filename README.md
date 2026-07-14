@@ -47,6 +47,9 @@ Notion-hosted blocks.
   active note's folder, excluding configured folders.
 - **Publish current note and linked notes recursively** — preflight the linked-note
   closure, establish missing page identities, then publish dependencies first.
+- **Repair published links to current note** — find already-published notes with
+  ordinary wiki-links to the active note, preflight them, request confirmation,
+  and republish them in place. It never publishes an unpublished source note.
 
 ## Configuration
 
@@ -92,6 +95,9 @@ checks have been reviewed on an unshared test page.
 - Rollback restores content on a best-effort basis; Notion has no multi-request
   transaction API.
 - Notion remains derived publication state, not a second source of truth.
+- Publishing a formerly-unpublished link target does not silently cascade writes;
+  run **Repair published links to current note** when those inbound links should
+  become native Notion page mentions.
 
 ## License
 

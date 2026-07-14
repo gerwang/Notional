@@ -38,6 +38,69 @@ export type PublicationResult = {
 	reconcile: ReconcileReport;
 };
 
+/**
+ * Find already-published notes whose ordinary wiki-links resolve to `target`.
+ * Embeds are intentionally excluded: note transclusion is not a page-link repair.
+ */
+export const collectPublishedInboundLinks = async (
+	plugin: NObsidian,
+	target: TFile
+): Promise<ServiceResult<TFile[]>> => {
+	try {
+		const targetFrontmatter = await plugin.getContent(target);
+		const targetIdentity = getPublicationIdentity(
+			targetFrontmatter,
+			plugin.settings.databaseAlias
+		);
+		if (!targetIdentity.pageId) {
+			throw Error(`Publish ${target.path} before repairing links to it`);
+		}
+
+		const inbound: TFile[] = [];
+		for (const [sourcePath, destinations] of Object.entries(
+			plugin.app.metadataCache.resolvedLinks
+		)) {
+			if (sourcePath === target.path || !destinations[target.path]) continue;
+			if (
+				isExcludedPublicationPath(
+					sourcePath,
+					plugin.settings.excludedFolders
+				)
+			) {
+				continue;
+			}
+
+			const source = plugin.app.vault.getAbstractFileByPath(sourcePath);
+			if (!(source instanceof TFile) || source.extension !== "md") continue;
+			const cache = plugin.app.metadataCache.getFileCache(source);
+			const hasOrdinaryWikiLink = cache?.links?.some((link) => {
+				if (!link.original.trimStart().startsWith("[[")) return false;
+				const linkPath = link.link.split("#", 1)[0].trim();
+				return (
+					plugin.getLinkedMarkdownFile(linkPath, source.path)?.path ===
+					target.path
+				);
+			});
+			if (!hasOrdinaryWikiLink) continue;
+
+			const frontmatter = await plugin.getContent(source);
+			const identity = getPublicationIdentity(
+				frontmatter,
+				plugin.settings.databaseAlias
+			);
+			if (identity.pageId) inbound.push(source);
+		}
+
+		inbound.sort((left, right) => left.path.localeCompare(right.path));
+		return { data: inbound, error: null };
+	} catch (error) {
+		return {
+			data: [],
+			error: error instanceof Error ? error : Error(String(error)),
+		};
+	}
+};
+
 const protectCode = (markdown: string) => {
 	const segments: string[] = [];
 	const content = markdown.replace(
@@ -288,6 +351,42 @@ export const publishFile = async (
 	} catch (error) {
 		return {
 			data: {} as PublicationResult,
+			error: error instanceof Error ? error : Error(String(error)),
+		};
+	}
+};
+
+/**
+ * Republish only pages that already have stable publication identities.
+ * Unlike `publishFiles`, this path can never create a new Notion page.
+ */
+export const republishPublishedFiles = async (
+	plugin: NObsidian,
+	files: TFile[]
+): Promise<ServiceResult<PublicationResult[]>> => {
+	try {
+		const preflights = new Map<string, PublicationPreflight>();
+		for (const file of files) {
+			const preflight = await preflightPublication(plugin, file);
+			if (preflight.error) throw preflight.error;
+			if (!preflight.data.pageId) {
+				throw Error(
+					`Refusing link repair because ${file.path} is not published`
+				);
+			}
+			preflights.set(file.path, preflight.data);
+		}
+
+		const results: PublicationResult[] = [];
+		for (const file of files) {
+			const result = await publishFile(plugin, file, preflights.get(file.path));
+			if (result.error) throw result.error;
+			results.push(result.data);
+		}
+		return { data: results, error: null };
+	} catch (error) {
+		return {
+			data: [],
 			error: error instanceof Error ? error : Error(String(error)),
 		};
 	}

@@ -22,6 +22,10 @@ export class App {
 		getFiles: jest.fn().mockReturnValue([]),
 		readBinary: jest.fn(),
 	};
+	metadataCache = {
+		resolvedLinks: {} as Record<string, Record<string, number>>,
+		getFileCache: jest.fn(),
+	};
 }
 export class PluginManifest {}
 
