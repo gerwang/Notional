@@ -174,6 +174,37 @@ describe("reconcilePage", () => {
 			after_block: { id: "a" },
 		});
 	});
+
+	it("preserves a nested file-upload ID while removing a block response ID", async () => {
+		(requestUrl as jest.Mock)
+			.mockResolvedValueOnce({
+				status: 200,
+				json: { results: [], has_more: false },
+			})
+			.mockResolvedValueOnce({
+				status: 200,
+				json: { results: [{ id: "inserted", type: "image" }] },
+			});
+
+		const result = await reconcilePage(settings, "page-id", [
+			{
+				object: "block",
+				id: "response-only-block-id",
+				type: "image",
+				image: {
+					type: "file_upload",
+					file_upload: { id: "upload-id" },
+					caption: [],
+				},
+			},
+		]);
+
+		expect(result.error).toBeNull();
+		const append = (requestUrl as jest.Mock).mock.calls[1][0];
+		const child = JSON.parse(append.body).children[0];
+		expect(child.id).toBeUndefined();
+		expect(child.image.file_upload.id).toBe("upload-id");
+	});
 });
 
 describe("uploadFile", () => {

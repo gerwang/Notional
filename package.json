@@ -1,6 +1,6 @@
 {
 	"name": "notional-vault-publisher",
-	"version": "0.3.0",
+	"version": "0.3.1",
 	"description": "Deliberate one-way Obsidian to Notion publication with stable page identity and note-local assets.",
 	"main": "main.js",
 	"bin": {

@@ -90,7 +90,7 @@ describe("Notional CLI bridge", () => {
 		file.stat = { ctime: 1, mtime: 1, size: 4 };
 		const settings = makeSettings();
 		return {
-			manifest: { version: "0.3.0" },
+			manifest: { version: "0.3.1" },
 			settings,
 			keyringCredentialState: { status: "loaded" },
 			hasValidNotionCredentials: jest.fn().mockReturnValue(true),
@@ -137,7 +137,7 @@ describe("Notional CLI bridge", () => {
 		expect(status).toMatchObject({
 			ok: true,
 			data: {
-				pluginVersion: "0.3.0",
+				pluginVersion: "0.3.1",
 				keyringStatus: "loaded",
 				credentialsAvailable: true,
 			},
@@ -184,7 +184,7 @@ describe("Notional CLI bridge", () => {
 		expect(JSON.parse(stdout)).toMatchObject({
 			ok: true,
 			data: {
-				pluginVersion: "0.3.0",
+				pluginVersion: "0.3.1",
 				vaultPath: root,
 			},
 		});
