@@ -27,9 +27,8 @@ import {
 } from "obsidian";
 import NObsidian from "main";
 import { PluginSettings, StringKeys, BooleanKeys } from "./service/types";
-import notion from "./service/notion";
+import { validateToken } from "./service/publisher-notion";
 import { resolveNotionToken } from "./service/oauth";
-import { extractNotionId } from "./service/utils";
 
 export class NObsidianSettingTab extends PluginSettingTab {
 	plugin: NObsidian;
@@ -66,36 +65,7 @@ export class NObsidianSettingTab extends PluginSettingTab {
 	private renderSettings(containerEl: HTMLElement): void {
 		this.renderConnectSection(containerEl);
 		this.renderDatabaseSection(containerEl);
-		this.renderAutoSyncSection(containerEl);
 		this.renderAdvancedSection(containerEl);
-	}
-
-	private renderAutoSyncSection(containerEl: HTMLElement): void {
-		new Setting(containerEl).setName("Automatic sync").setHeading();
-
-		this.createToggleSetting(containerEl, {
-			name: "Automatic sync (experimental)",
-			desc: "Push a linked note to Notion shortly after you edit it, and periodically pull the open note. Conflicts are never auto-resolved — they appear in the sync panel.",
-			settingKey: "autoSync",
-		});
-
-		new Setting(containerEl)
-			.setName("Poll interval (minutes)")
-			.setDesc(
-				"How often to check the open note for Notion-side changes."
-			)
-			.addText((text) =>
-				text
-					.setValue(
-						String(this.plugin.settings.autoSyncIntervalMinutes)
-					)
-					.onChange(async (value) => {
-						const parsed = Number.parseInt(value, 10);
-						this.plugin.settings.autoSyncIntervalMinutes =
-							Number.isFinite(parsed) && parsed > 0 ? parsed : 5;
-						await this.plugin.saveSettings();
-					})
-			);
 	}
 
 	private renderConnectSection(containerEl: HTMLElement): void {
@@ -221,7 +191,7 @@ export class NObsidianSettingTab extends PluginSettingTab {
 					}
 					button.setDisabled(true);
 					this.setStatus(status, null, "Testing…");
-					const result = await notion.validateToken(
+					const result = await validateToken(
 						this.plugin.settings
 					);
 					button.setDisabled(false);
@@ -290,56 +260,12 @@ export class NObsidianSettingTab extends PluginSettingTab {
 		this.renderDatabaseStatus(status);
 
 		this.createTextSetting(containerEl, {
-			name: "Notion parent page link",
-			desc: "Paste the link of a Notion page you've shared with your connection. Notional creates a database there to hold your notes.",
-			placeholder: "https://www.notion.so/Your-Page-…",
-			settingKey: "notionParentPageUrl",
+			name: "Database ID",
+			desc: "Existing Notion database shared with the configured connection.",
+			placeholder: "Enter your Database ID",
+			settingKey: "databaseID",
 			isPassword: false,
 		});
-
-		new Setting(containerEl)
-			.setName("Create notes database")
-			.setDesc(
-				"Creates the database Notional uploads into and remembers it for you."
-			)
-			.addButton((button) =>
-				button
-					.setButtonText(
-						this.plugin.settings.databaseID ? "Re-create" : "Create"
-					)
-					.setClass("mod-cta")
-					.onClick(async () => {
-						const pageId = extractNotionId(
-							this.plugin.settings.notionParentPageUrl
-						);
-						if (!pageId) {
-							this.setStatus(
-								status,
-								false,
-								"Couldn't read a page ID from that link. Paste a full Notion page URL."
-							);
-							return;
-						}
-						button.setDisabled(true);
-						this.setStatus(status, null, "Creating database…");
-						const result = await notion.createDatabase(
-							this.plugin.settings,
-							pageId
-						);
-						button.setDisabled(false);
-						if (result.error) {
-							this.setStatus(
-								status,
-								false,
-								"Could not create the database. Make sure the page is shared with your connection."
-							);
-							return;
-						}
-						this.plugin.settings.databaseID = (result.data as { id: string }).id;
-						await this.plugin.saveSettings();
-						this.update();
-					})
-			);
 	}
 
 	private renderDatabaseStatus(el: HTMLElement): void {
@@ -348,7 +274,7 @@ export class NObsidianSettingTab extends PluginSettingTab {
 			this.setStatus(
 				el,
 				null,
-				"No database yet. Create one below, or set a Database ID manually under Advanced."
+				"Set the existing Notion database ID below."
 			);
 			return;
 		}
@@ -368,10 +294,34 @@ export class NObsidianSettingTab extends PluginSettingTab {
 		new Setting(containerEl).setName("Advanced").setHeading();
 
 		this.createTextSetting(containerEl, {
-			name: "Database ID",
-			desc: "Set manually to use an existing Notion database instead of creating one above.",
-			placeholder: "Enter your Database ID",
-			settingKey: "databaseID",
+			name: "Data source ID (optional)",
+			desc: "Notion 2026 data source ID. Leave blank to discover the database's first data source automatically.",
+			placeholder: "Enter the Data Source ID",
+			settingKey: "dataSourceID",
+			isPassword: false,
+		});
+
+		this.createTextSetting(containerEl, {
+			name: "Publication alias",
+			desc: "Frontmatter namespace. The vault uses NotionID-obsidian-vault and link-obsidian-vault.",
+			placeholder: "obsidian-vault",
+			settingKey: "databaseAlias",
+			isPassword: false,
+		});
+
+		this.createTextSetting(containerEl, {
+			name: "Title property",
+			desc: "Name of the title property in the target Notion data source.",
+			placeholder: "Name",
+			settingKey: "titleProperty",
+			isPassword: false,
+		});
+
+		this.createTextSetting(containerEl, {
+			name: "Tags property",
+			desc: "Name of the multi-select property used when Convert tags is enabled.",
+			placeholder: "tags",
+			settingKey: "tagsProperty",
 			isPassword: false,
 		});
 
@@ -427,7 +377,7 @@ export class NObsidianSettingTab extends PluginSettingTab {
 
 		this.createToggleSetting(containerEl, {
 			name: "Convert tags (optional)",
-			desc: "Transfer Obsidian tags to the Notion table. Requires a 'Tags' column in Notion.",
+			desc: "Transfer Obsidian tags to the configured Notion multi-select property.",
 			settingKey: "allowTags",
 		});
 	}

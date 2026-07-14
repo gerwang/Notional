@@ -1,14 +1,14 @@
 {
-	"name": "notional",
-	"version": "1.2.3",
-	"description": "Two-way sync between your Markdown notes and Notion, with one-click connect and conflict-aware Push/Pull.",
+	"name": "notional-vault-publisher",
+	"version": "0.1.0",
+	"description": "Deliberate one-way Obsidian to Notion publication with stable page identity and note-local assets.",
 	"main": "main.js",
 	"scripts": {
 		"dev": "node esbuild.config.mjs",
 		"build": "tsc -noEmit -skipLibCheck && node esbuild.config.mjs production",
 		"version": "node version-bump.mjs && git add manifest.json versions.json",
 		"lint": "eslint .",
-		"lint:obsidian": "eslint --config eslint.obsidian.mjs main.ts view.ts settingTab.ts \"service/**/*.ts\"",
+		"lint:obsidian": "eslint --config eslint.obsidian.mjs main.ts settingTab.ts \"service/**/*.ts\"",
 		"test": "npx jest"
 	},
 	"keywords": [

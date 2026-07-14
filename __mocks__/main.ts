@@ -3,10 +3,12 @@ import { PluginSettings } from "../service/types";
 import { NoticeMessageConfig } from "../service/utils";
 
 class NObsidian {
+	app: App;
 	settings: PluginSettings;
 	message: { [key: string]: string };
 
 	constructor(app: App, manifest: PluginManifest) {
+		this.app = app;
 		this.settings = {
 			notionAPIToken: "",
 			notionOAuthClientId: "",
@@ -18,6 +20,12 @@ class NObsidian {
 			notionOAuthWorkspaceName: "",
 			notionOAuthRefreshToken: "",
 			databaseID: "",
+			dataSourceID: "",
+			databaseAlias: "obsidian-vault",
+			titleProperty: "Name",
+			tagsProperty: "tags",
+			excludedFolders: ["01 Templates"],
+			maxUploadBytes: 5 * 1024 * 1024,
 			notionParentPageUrl: "",
 			bannerUrl: "",
 			notionWorkspaceID: "",
