@@ -1,8 +1,11 @@
 {
 	"name": "notional-vault-publisher",
-	"version": "0.2.0",
+	"version": "0.3.0",
 	"description": "Deliberate one-way Obsidian to Notion publication with stable page identity and note-local assets.",
 	"main": "main.js",
+	"bin": {
+		"notional-publish": "bin/notional-publish.mjs"
+	},
 	"scripts": {
 		"dev": "node esbuild.config.mjs",
 		"build": "tsc -noEmit -skipLibCheck && node esbuild.config.mjs production",

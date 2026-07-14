@@ -1,12 +1,16 @@
 ---
 name: publish-obsidian-to-notion
-description: Prepare, validate, install, or operate the Notional Vault Publisher for deliberate one-way Obsidian-to-Notion publication. Use for note preflight, stable in-place page updates, note-local image/PDF embeds, recursive linked-note publishing, plugin deployment, or publication failure diagnosis. Markdown remains canonical and Notion is only a publication target.
+description: Prepare, validate, install, or operate the Notional Vault Publisher and its local CLI for deliberate one-way Obsidian-to-Notion publication. Use for note preflight, agent-driven single-note publication, stable in-place page updates, note-local image/PDF embeds, recursive linked-note publishing, plugin deployment, or publication failure diagnosis. Markdown remains canonical and Notion is only a publication target.
 ---
 
 # Publish Obsidian to Notion
 
 Use the `notional-vault-publisher` Obsidian plugin. Do not invent a separate
 conversion or direct-API workflow.
+
+For CLI or AI-agent work, use `notional-publish`. It talks to the enabled plugin
+over a private, vault-specific Unix socket, so Obsidian must be running. The CLI
+does not receive the Notion token and does not bypass the publisher.
 
 ## Safety boundary
 
@@ -35,8 +39,18 @@ Before any authorized publication:
 3. Resolve local embeds in this order: note parent, vault root, unique basename.
 4. Fail on missing or ambiguous assets and files above the configured limit.
 5. Report unreviewed status and unpublished wiki-link targets as warnings.
-6. Prefer the plugin command **Preflight current note (no upload)** for the final
-   check. Preflight must not contact or modify Notion.
+6. For an agent, run the local CLI preflight as the final check. A human may use
+   the equivalent **Preflight current note (no upload)** command in Obsidian.
+   Preflight must not contact or modify Notion.
+
+```bash
+notional-publish status --vault "$vault"
+notional-publish preflight "$note" --vault "$vault"
+```
+
+The output is JSON. Save `data.fingerprint` from the successful preflight and
+report `data.warnings` before requesting publication approval. Do not infer that
+an earlier request to edit or inspect a note authorizes publication.
 
 Do not create missing Markdown notes from unresolved wiki-links.
 
@@ -50,6 +64,31 @@ After explicit authorization, select the narrowest plugin command:
 - **Repair published links to current note** after publishing a formerly
   unpublished target. It only republishes already-published inbound-link sources
   and asks for confirmation before writing.
+
+For one CLI-controlled page, use the fingerprint from the immediately preceding
+preflight:
+
+```bash
+notional-publish publish "$note" --vault "$vault" \
+  --confirm --fingerprint "$fingerprint"
+```
+
+- If the bridge returns `stale_preflight`, rerun preflight and review the new
+  result; never reuse or fabricate a fingerprint.
+- If preflight reports warnings, stop and report them. Add `--allow-warnings`
+  only when the user explicitly accepts those specific warnings.
+- Never call the Notion API directly as a fallback when the bridge is unavailable.
+- Folder and linked-note recursive publication remain deliberate GUI operations.
+
+Inbound-link repair is also two-stage. First obtain the plan without `--confirm`,
+review its pages and warnings, then use its fingerprint only after explicit
+authorization:
+
+```bash
+notional-publish repair-links "$note" --vault "$vault"
+notional-publish repair-links "$note" --vault "$vault" \
+  --confirm --fingerprint "$repair_fingerprint"
+```
 
 The publisher uploads assets first, compiles Notion blocks, verifies an existing
 page, then reconciles blocks in place. Compatible and unchanged blocks retain
@@ -86,3 +125,12 @@ npm run lint
 For a manual install, copy only `main.js`, `manifest.json`, and `styles.css` to
 `<vault>/.obsidian/plugins/notional-vault-publisher/`. Installation does not
 authorize enabling or publishing.
+
+Install the CLI separately and keep it executable:
+
+```bash
+install -m 0755 bin/notional-publish.mjs ~/bin/notional-publish
+```
+
+After replacing plugin files, Obsidian must reload the plugin before the new
+bridge is available. A CLI `status` request is a safe readiness check.

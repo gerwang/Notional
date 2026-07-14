@@ -48,6 +48,7 @@ import {
 	getNotionKeyringState,
 	refreshNotionKeyringToken,
 } from "./service/credentials";
+import { NotionalCliBridge } from "./service/cli-bridge";
 import { NObsidianSettingTab } from "settingTab";
 import {
 	NoticeMessageConfig,
@@ -148,6 +149,7 @@ export default class NObsidian extends Plugin {
 	settings: PluginSettings;
 	message: { [key: string]: string };
 	keyringCredentialState: KeyringCredentialState = getNotionKeyringState();
+	private cliBridge: NotionalCliBridge | null = null;
 
 	// In-flight OAuth: the CSRF state lives only in memory for the duration of
 	// a single connect, never on disk.
@@ -183,6 +185,10 @@ export default class NObsidian extends Plugin {
 		// Add settings tab to plugin (before optional wiring, so a failure in
 		// later registration can never leave the settings pane blank).
 		this.addSettingTab(new NObsidianSettingTab(this.app, this));
+
+		this.app.workspace.onLayoutReady(() => {
+			void this.startCliBridge();
+		});
 
 		// Capture the OAuth redirect (obsidian://notional-oauth?code=…) so the
 		// user never has to copy a code back into Obsidian by hand.
@@ -436,6 +442,29 @@ export default class NObsidian extends Plugin {
 		);
 		if (result.data.warnings.length) {
 			console.warn("Notional publication warnings", result.data.warnings);
+		}
+	}
+
+	onunload() {
+		const bridge = this.cliBridge;
+		this.cliBridge = null;
+		if (bridge) {
+			void bridge.stop().catch((error) => {
+				console.error("Notional CLI bridge shutdown failed", error);
+			});
+		}
+	}
+
+	private async startCliBridge(): Promise<void> {
+		if (this.cliBridge) return;
+		const bridge = new NotionalCliBridge(this);
+		try {
+			await bridge.start();
+			this.cliBridge = bridge;
+			console.info(`Notional CLI bridge ready at ${bridge.getSocketPath()}`);
+		} catch (error) {
+			await bridge.stop().catch(() => undefined);
+			console.error("Notional CLI bridge failed to start", error);
 		}
 	}
 
