@@ -16,6 +16,10 @@ conversion or direct-API workflow.
 - Preserve `NotionID-<alias>` and `link-<alias>` exactly. Treat a mismatch as a
   blocker; never detach, rotate, or recreate an existing public page.
 - Keep Markdown canonical. Do not rewrite a note merely to satisfy the publisher.
+- Prefer the Linux Secret Service/KWallet credential named
+  `NOTION_INTEGRATION_TOKEN` under application `obsidian-llm-wiki`. The plugin
+  retrieves it at load time and keeps it only in memory; do not copy it into
+  plugin settings when the keyring is available.
 - Exclude configured private/template folders; `01 Templates` is excluded by
   default.
 - Use AI only to explain or repair a reported source problem. Publication itself

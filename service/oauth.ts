@@ -4,6 +4,7 @@ import {
 	PluginSettings,
 	ServiceResult,
 } from "./types";
+import { getNotionKeyringToken } from "./credentials";
 
 export const NOTION_OAUTH_AUTHORIZE_URL =
 	"https://api.notion.com/v1/oauth/authorize";
@@ -19,10 +20,12 @@ const errorResult = <T>(error: Error, data: unknown = null): ServiceResult<T> =>
 	error,
 });
 
-// Prefer a token obtained through OAuth, falling back to a manually pasted
-// internal-integration secret. Both are bearer tokens to Notion.
+// Prefer OAuth when configured. Otherwise use the in-memory Secret
+// Service/KWallet credential before the discouraged plaintext fallback.
 export const resolveNotionToken = (settings: PluginSettings): string =>
-	settings.notionOAuthAccessToken || settings.notionAPIToken;
+	settings.notionOAuthAccessToken ||
+	getNotionKeyringToken() ||
+	settings.notionAPIToken;
 
 // Whether the user has any usable Notion bearer token. Gating in main.ts and
 // the sync panel must resolve the token the same way the API layer does, or an

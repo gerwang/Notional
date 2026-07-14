@@ -1,10 +1,10 @@
 {
 	"id": "notional-vault-publisher",
 	"name": "Notional Vault Publisher",
-	"version": "0.1.0",
+	"version": "0.2.0",
 	"minAppVersion": "1.13.0",
 	"description": "Deliberate one-way Obsidian to Notion publication with stable page identity, local assets, preflight, and in-place block updates.",
 	"author": "gerwang; based on Notional by bryanbans",
 	"authorUrl": "https://github.com/gerwang/Notional",
-	"isDesktopOnly": false
+	"isDesktopOnly": true
 }

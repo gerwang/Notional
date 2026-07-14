@@ -65,6 +65,21 @@ Defaults for this vault:
 - Tags property: `tags`
 - Excluded folder: `01 Templates`
 
+### Desktop keyring
+
+On Linux desktop, the publisher loads `NOTION_INTEGRATION_TOKEN` from Secret
+Service/KWallet by running `/usr/bin/secret-tool` without a shell:
+
+```text
+application = obsidian-llm-wiki
+variable = NOTION_INTEGRATION_TOKEN
+```
+
+The token stays in memory and is never copied into plugin `data.json`. OAuth has
+priority when configured; the keyring has priority over the explicitly labeled
+plaintext fallback. A successful keyring load removes any duplicate manual token
+from saved plugin settings. This makes the plugin desktop-only.
+
 With Notion API `2026-03-11`, new pages require a data source ID. Set it directly
 or let the plugin discover the database's first data source.
 

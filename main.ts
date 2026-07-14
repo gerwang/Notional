@@ -43,6 +43,11 @@ import {
 	hasNotionCredentials,
 	isMatchingOAuthState,
 } from "./service/oauth";
+import {
+	KeyringCredentialState,
+	getNotionKeyringState,
+	refreshNotionKeyringToken,
+} from "./service/credentials";
 import { NObsidianSettingTab } from "settingTab";
 import {
 	NoticeMessageConfig,
@@ -142,6 +147,7 @@ const OAUTH_PROTOCOL_ACTION = "notional-oauth";
 export default class NObsidian extends Plugin {
 	settings: PluginSettings;
 	message: { [key: string]: string };
+	keyringCredentialState: KeyringCredentialState = getNotionKeyringState();
 
 	// In-flight OAuth: the CSRF state lives only in memory for the duration of
 	// a single connect, never on disk.
@@ -163,6 +169,7 @@ export default class NObsidian extends Plugin {
 			DEFAULT_SETTINGS,
 			((await this.loadData()) as Partial<PluginSettings>)
 		);
+		await this.refreshNotionKeyringCredential();
 
 		// Publication is explicit. The fork never pulls from Notion or publishes
 		// merely because a note changed.
@@ -292,6 +299,18 @@ export default class NObsidian extends Plugin {
 
 	async saveSettings() {
 		await this.saveData(this.settings);
+	}
+
+	async refreshNotionKeyringCredential(): Promise<KeyringCredentialState> {
+		this.keyringCredentialState = await refreshNotionKeyringToken();
+		if (
+			this.keyringCredentialState.status === "loaded" &&
+			this.settings.notionAPIToken
+		) {
+			this.settings.notionAPIToken = "";
+			await this.saveSettings();
+		}
+		return this.keyringCredentialState;
 	}
 
 	addCustomCommands() {
