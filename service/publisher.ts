@@ -38,6 +38,11 @@ export type PublicationResult = {
 	reconcile: ReconcileReport;
 };
 
+export type PublishedPreflight = {
+	file: TFile;
+	preflight: PublicationPreflight;
+};
+
 /**
  * Find already-published notes whose ordinary wiki-links resolve to `target`.
  * Embeds are intentionally excluded: note transclusion is not a page-link repair.
@@ -365,21 +370,37 @@ export const republishPublishedFiles = async (
 	files: TFile[]
 ): Promise<ServiceResult<PublicationResult[]>> => {
 	try {
-		const preflights = new Map<string, PublicationPreflight>();
+		const preflights: PublishedPreflight[] = [];
 		for (const file of files) {
 			const preflight = await preflightPublication(plugin, file);
 			if (preflight.error) throw preflight.error;
-			if (!preflight.data.pageId) {
+			preflights.push({ file, preflight: preflight.data });
+		}
+		return republishPublishedPreflights(plugin, preflights);
+	} catch (error) {
+		return {
+			data: [],
+			error: error instanceof Error ? error : Error(String(error)),
+		};
+	}
+};
+
+/** Republish an already-preflighted selection without refreshing its snapshot. */
+export const republishPublishedPreflights = async (
+	plugin: NObsidian,
+	items: PublishedPreflight[]
+): Promise<ServiceResult<PublicationResult[]>> => {
+	try {
+		for (const { file, preflight } of items) {
+			if (!preflight.pageId) {
 				throw Error(
 					`Refusing link repair because ${file.path} is not published`
 				);
 			}
-			preflights.set(file.path, preflight.data);
 		}
-
 		const results: PublicationResult[] = [];
-		for (const file of files) {
-			const result = await publishFile(plugin, file, preflights.get(file.path));
+		for (const { file, preflight } of items) {
+			const result = await publishFile(plugin, file, preflight);
 			if (result.error) throw result.error;
 			results.push(result.data);
 		}

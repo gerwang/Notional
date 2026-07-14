@@ -1,4 +1,4 @@
 interface:
   display_name: "Publish Obsidian to Notion"
-  short_description: "Safely prepare and publish canonical vault notes"
-  default_prompt: "Use $publish-obsidian-to-notion to preflight this note for safe in-place Notion publication."
+  short_description: "Safely publish canonical vault notes by CLI"
+  default_prompt: "Use $publish-obsidian-to-notion and its local CLI to preflight this note for safe in-place Notion publication; report warnings and wait for explicit publication approval."
