@@ -82,8 +82,27 @@ export class NObsidianSettingTab extends PluginSettingTab {
 		link.setAttr("target", "_blank");
 		link.setAttr("rel", "noopener");
 		help.appendText(
-			" (choose “Access token”), copy its secret below, then open the Notion page you want to use and share it with that connection (••• → Connections)."
+			" (choose “Access token”), store it as NOTION_INTEGRATION_TOKEN in Secret Service/KWallet, then share the target Notion database with that connection (••• → Connections)."
 		);
+
+		const keyringStatus = containerEl.createEl("div", {
+			cls: "setting-item-description nob-setup-status",
+		});
+		this.renderKeyringStatus(keyringStatus);
+		new Setting(containerEl)
+			.setName("Desktop keyring")
+			.setDesc(
+				"Loads NOTION_INTEGRATION_TOKEN through Secret Service/KWallet and keeps it only in memory."
+			)
+			.addButton((button) =>
+				button.setButtonText("Reload").onClick(async () => {
+					button.setDisabled(true);
+					this.setStatus(keyringStatus, null, "Reading desktop keyring…");
+					await this.plugin.refreshNotionKeyringCredential();
+					button.setDisabled(false);
+					this.renderKeyringStatus(keyringStatus);
+				})
+			);
 
 		const oauthStatus = containerEl.createEl("div", {
 			cls: "setting-item-description nob-setup-status",
@@ -165,8 +184,8 @@ export class NObsidianSettingTab extends PluginSettingTab {
 			);
 
 		this.createTextSetting(containerEl, {
-			name: "Notion API token",
-			desc: "Manual fallback: paste an internal integration secret or OAuth access token.",
+			name: "Notion API token (plaintext fallback)",
+			desc: "Not recommended: this value is saved in plugin data.json. It is ignored when OAuth or the desktop keyring provides a token.",
 			placeholder: "ntn_…",
 			settingKey: "notionAPIToken",
 			isPassword: true,
@@ -211,6 +230,21 @@ export class NObsidianSettingTab extends PluginSettingTab {
 					);
 				})
 			);
+	}
+
+	private renderKeyringStatus(el: HTMLElement): void {
+		const state = this.plugin.keyringCredentialState;
+		this.setStatus(
+			el,
+			state.status === "loaded"
+				? true
+				: state.status === "error"
+					? false
+					: null,
+			state.status === "loaded"
+				? `${state.message} No token is stored in data.json.`
+				: state.message
+		);
 	}
 
 	private renderOAuthStatus(el: HTMLElement): void {
