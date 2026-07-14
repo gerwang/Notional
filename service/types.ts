@@ -29,6 +29,12 @@ export type PluginSettings = {
 	notionOAuthWorkspaceName: string;
 	notionOAuthRefreshToken: string;
 	databaseID: string;
+	dataSourceID: string;
+	databaseAlias: string;
+	titleProperty: string;
+	tagsProperty: string;
+	excludedFolders: string[];
+	maxUploadBytes: number;
 	// Link to a shared Notion page; used to auto-create the notes database.
 	notionParentPageUrl: string;
 	bannerUrl: string;
@@ -52,7 +58,7 @@ export type BooleanKeys<T> = Exclude<
 >;
 
 export type MarkdownWithFrontMatter = {
-	readonly [key: string]: string | string[] | undefined;
+	readonly [key: string]: unknown;
 	readonly __content: string;
 	notionPageId?: string;
 	notionPageUrl?: string;

@@ -27,22 +27,18 @@ import {
 	PluginManifest,
 	TFile,
 	TFolder,
-	debounce,
-	normalizePath,
 } from "obsidian";
 import {
 	PluginSettings,
 	MarkdownWithFrontMatter,
 	NotionOAuthTokenResponse,
 	ServiceResult,
-	BulkUploadFileResult,
 } from "service/types";
 import {
 	buildNotionOAuthUrl,
 	completeNotionOAuth,
 	generateOAuthState,
 	hasNotionCredentials,
-	hasNotionToken,
 	isMatchingOAuthState,
 } from "./service/oauth";
 import { NObsidianSettingTab } from "settingTab";
@@ -50,13 +46,12 @@ import {
 	NoticeMessageConfig,
 	parseFrontMatter,
 } from "service/utils";
+import { uploadFile } from "service";
 import {
-	pullFileFromNotion,
-	runWithConcurrency,
-	syncFile,
-	uploadFile,
-} from "service";
-import { SyncView, VIEW_TYPE_SYNC } from "./view";
+	preflightPublication,
+	publishFiles,
+	publishLinkedClosure,
+} from "./service/publisher";
 
 // Define your default settings
 const DEFAULT_SETTINGS: PluginSettings = {
@@ -70,6 +65,12 @@ const DEFAULT_SETTINGS: PluginSettings = {
 	notionOAuthWorkspaceName: "",
 	notionOAuthRefreshToken: "",
 	databaseID: "",
+	dataSourceID: "",
+	databaseAlias: "obsidian-vault",
+	titleProperty: "Name",
+	tagsProperty: "tags",
+	excludedFolders: ["01 Templates"],
+	maxUploadBytes: 5 * 1024 * 1024,
 	notionParentPageUrl: "",
 	bannerUrl: "",
 	notionWorkspaceID: "",
@@ -78,8 +79,6 @@ const DEFAULT_SETTINGS: PluginSettings = {
 	autoSyncIntervalMinutes: 5,
 };
 
-const BULK_UPLOAD_CONCURRENCY = 3;
-
 // obsidian://notional-oauth?code=… — the static redirect page bounces the
 // Notion callback here so the connect flow stays inside Obsidian.
 const OAUTH_PROTOCOL_ACTION = "notional-oauth";
@@ -87,12 +86,6 @@ const OAUTH_PROTOCOL_ACTION = "notional-oauth";
 export default class NObsidian extends Plugin {
 	settings: PluginSettings;
 	message: { [key: string]: string };
-
-	// Auto-sync bookkeeping.
-	private suppressModify: Map<string, number> = new Map();
-	private conflictNotified: Set<string> = new Set();
-	private autoSyncDebouncers: Map<string, () => void> = new Map();
-	private lastAutoPoll = 0;
 
 	// In-flight OAuth: the CSRF state lives only in memory for the duration of
 	// a single connect, never on disk.
@@ -115,20 +108,14 @@ export default class NObsidian extends Plugin {
 			((await this.loadData()) as Partial<PluginSettings>)
 		);
 
-		// Register the sync side panel, ribbon icon, and opener command.
-		this.registerView(
-			VIEW_TYPE_SYNC,
-			(leaf) => new SyncView(leaf, this)
-		);
-		this.addRibbonIcon("sync", "Open Notional sync panel", () => {
-			void this.activateSyncView();
+		// Publication is explicit. The fork never pulls from Notion or publishes
+		// merely because a note changed.
+		this.addRibbonIcon("upload-cloud", "Publish current note to Notion", () => {
+			void this.uploadCurrentNote();
 		});
 
 		// Add commands to vault
 		this.addCustomCommands();
-
-		// Wire up optional automatic background sync.
-		this.registerAutoSync();
 
 		// Add settings tab to plugin (before optional wiring, so a failure in
 		// later registration can never leave the settings pane blank).
@@ -254,7 +241,7 @@ export default class NObsidian extends Plugin {
 	addCustomCommands() {
 		this.addCommand({
 			id: "share-to-notion",
-			name: "Upload current note to Notion",
+			name: "Publish current note to Notion",
 			editorCallback: async () => {
 				void this.uploadCurrentNote();
 			},
@@ -262,49 +249,65 @@ export default class NObsidian extends Plugin {
 
 		this.addCommand({
 			id: "bulk-share-to-notion",
-			name: "Upload current folder to Notion",
+			name: "Publish current folder to Notion",
 			callback: async () => {
 				void this.uploadCurrentFolder();
 			},
 		});
 
 		this.addCommand({
-			id: "pull-current-note-from-notion",
-			name: "Pull current note from Notion",
+			id: "preflight-current-note",
+			name: "Preflight current note (no upload)",
 			editorCallback: async () => {
-				void this.pullCurrentNote();
+				void this.preflightCurrentNote();
 			},
 		});
 
 		this.addCommand({
-			id: "sync-current-note-with-notion",
-			name: "Sync current note with Notion",
+			id: "publish-linked-notes",
+			name: "Publish current note and linked notes recursively",
 			editorCallback: async () => {
-				void this.syncCurrentNote();
-			},
-		});
-
-		this.addCommand({
-			id: "open-sync-panel",
-			name: "Open sync panel",
-			callback: () => {
-				void this.activateSyncView();
+				void this.publishCurrentNoteClosure();
 			},
 		});
 	}
 
-	async activateSyncView() {
-		const { workspace } = this.app;
-
-		let leaf = workspace.getLeavesOfType(VIEW_TYPE_SYNC)[0];
-		if (!leaf) {
-			const rightLeaf = workspace.getRightLeaf(false);
-			if (!rightLeaf) return;
-			leaf = rightLeaf;
-			await leaf.setViewState({ type: VIEW_TYPE_SYNC, active: true });
+	async preflightCurrentNote() {
+		const file = this.app.workspace.getActiveFile();
+		if (!file) {
+			new Notice(this.message["open-file"]);
+			return;
 		}
+		const result = await preflightPublication(this, file);
+		if (result.error) {
+			new Notice(`Preflight failed: ${result.error.message}`, 8000);
+			return;
+		}
+		new Notice(
+			`Preflight passed: ${result.data.attachments.length} embeds, ${result.data.linkedFiles.length} linked notes, ${result.data.warnings.length} warnings.`,
+			8000
+		);
+		if (result.data.warnings.length) {
+			console.warn("Notional publication warnings", result.data.warnings);
+		}
+	}
 
-		void workspace.revealLeaf(leaf);
+	async publishCurrentNoteClosure() {
+		if (!this.hasValidNotionCredentials()) {
+			new Notice(this.message["config-settings"]);
+			return;
+		}
+		const file = this.app.workspace.getActiveFile();
+		if (!file) {
+			new Notice(this.message["open-file"]);
+			return;
+		}
+		const result = await publishLinkedClosure(this, file);
+		if (result.error) {
+			new Notice(`Recursive publication failed: ${result.error.message}`, 10000);
+			return;
+		}
+		new Notice(`Published ${result.data.length} linked notes in place.`, 8000);
 	}
 
 	async uploadCurrentNote() {
@@ -335,39 +338,12 @@ export default class NObsidian extends Plugin {
 		}
 
 		const markdownFiles = this.collectUploadScope(nowFile);
-		const results = await runWithConcurrency(
-			markdownFiles,
-			BULK_UPLOAD_CONCURRENCY,
-			async (file): Promise<BulkUploadFileResult> => {
-				try {
-					const uploadResult = await this.uploadFile(file);
-					return {
-						fileName: file.basename,
-						error: uploadResult.error,
-					};
-				} catch (error) {
-					const uploadError =
-						error instanceof Error ? error : Error(String(error));
-					this.displayResult(
-						{ data: null, error: uploadError },
-						file.basename
-					);
-					return { fileName: file.basename, error: uploadError };
-				}
-			}
-		);
-		const failedUploads = results.filter((result) => result.error);
-
-		if (failedUploads.length > 0) {
-			const succeededUploads = results.length - failedUploads.length;
-			new Notice(
-				`Folder sync finished: ${succeededUploads}/${results.length} notes uploaded. ${failedUploads.length} failed.`,
-				5000
-			);
+		const result = await publishFiles(this, markdownFiles);
+		if (result.error) {
+			new Notice(`Folder publication failed: ${result.error.message}`, 10000);
 			return;
 		}
-
-		new Notice(this.message["all-sync-success"]);
+		new Notice(`Published ${result.data.length} notes in place.`, 8000);
 	}
 
 	getLinkedMarkdownFile(linkPath: string, sourcePath: string): TFile | null {
@@ -399,44 +375,8 @@ export default class NObsidian extends Plugin {
 		return markdownFiles;
 	}
 
-	async pullCurrentNote() {
-		if (!this.hasValidNotionToken()) {
-			new Notice(this.message["config-settings"]);
-			return;
-		}
-
-		const nowFile = this.app.workspace.getActiveFile();
-		if (!nowFile) {
-			new Notice(this.message["open-file"]);
-			return null;
-		}
-
-		const pullResult = await pullFileFromNotion(this, nowFile);
-		this.displayResult(pullResult, nowFile.basename);
-	}
-
-	async syncCurrentNote() {
-		if (!this.hasValidNotionToken()) {
-			new Notice(this.message["config-settings"]);
-			return;
-		}
-
-		const nowFile = this.app.workspace.getActiveFile();
-		if (!nowFile) {
-			new Notice(this.message["open-file"]);
-			return null;
-		}
-
-		const syncResult = await syncFile(this, nowFile);
-		this.displayResult(syncResult, nowFile.basename);
-	}
-
 	hasValidNotionCredentials() {
 		return hasNotionCredentials(this.settings);
-	}
-
-	hasValidNotionToken() {
-		return hasNotionToken(this.settings);
 	}
 
 	async uploadFile(file: TFile): Promise<ServiceResult> {
@@ -451,106 +391,8 @@ export default class NObsidian extends Plugin {
 		return contentWithFrontMatter;
 	}
 
-	async createEmptyMarkdownFile(pageName: string): Promise<TFile> {
-		const newFilePath = normalizePath(`${pageName}.md`);
-		const newFile = await this.app.vault.create(newFilePath, "");
-		return newFile;
-	}
-
 	async updateMarkdownFile(file: TFile, newContent: string): Promise<void> {
-		// Mark this write so the auto-sync modify handler ignores our own edit.
-		this.suppressModify.set(file.path, Date.now());
 		await file.vault.modify(file, newContent);
-	}
-
-	private registerAutoSync() {
-		const AUTO_SYNC_DEBOUNCE_MS = 3000;
-		const SUPPRESS_WINDOW_MS = 2000;
-
-		// Push a linked note shortly after the user stops editing it.
-		this.registerEvent(
-			this.app.vault.on("modify", (file) => {
-				if (!(file instanceof TFile)) return;
-				if (!this.settings.autoSync) return;
-				if (file.extension !== "md") return;
-				if (!this.hasValidNotionToken()) return;
-
-				const suppressedAt = this.suppressModify.get(file.path);
-				if (
-					suppressedAt &&
-					Date.now() - suppressedAt < SUPPRESS_WINDOW_MS
-				) {
-					return;
-				}
-
-				let debounced = this.autoSyncDebouncers.get(file.path);
-				if (!debounced) {
-					debounced = debounce(
-						() => {
-							void this.autoSyncFile(file);
-						},
-						AUTO_SYNC_DEBOUNCE_MS,
-						true
-					);
-					this.autoSyncDebouncers.set(file.path, debounced);
-				}
-				debounced();
-			})
-		);
-
-		// Periodically pull the open note. A 60s ticker checks against the
-		// configured interval so changing the interval needs no reload.
-		this.registerInterval(
-			window.setInterval(() => {
-				if (!this.settings.autoSync) return;
-				if (!this.hasValidNotionToken()) return;
-
-				const intervalMs =
-					Math.max(1, this.settings.autoSyncIntervalMinutes) * 60000;
-				if (Date.now() - this.lastAutoPoll < intervalMs) return;
-
-				this.lastAutoPoll = Date.now();
-				void this.pollOpenNote();
-			}, 60000)
-		);
-	}
-
-	private async autoSyncFile(file: TFile) {
-		// Only manage notes already linked to Notion; never auto-create pages.
-		const contentWithFrontMatter = await this.getContent(file);
-		if (!contentWithFrontMatter.notionPageId) return;
-
-		const result = await syncFile(this, file);
-
-		if (result.error) {
-			if (/conflict/i.test(result.error.message)) {
-				if (!this.conflictNotified.has(file.path)) {
-					this.conflictNotified.add(file.path);
-					new Notice(
-						`Sync conflict in “${file.basename}” — resolve it in the Notional sync panel.`,
-						8000
-					);
-				}
-			}
-			// Other background errors stay quiet to avoid noise.
-		} else {
-			this.conflictNotified.delete(file.path);
-		}
-
-		this.refreshSyncViews();
-	}
-
-	private async pollOpenNote() {
-		const file = this.app.workspace.getActiveFile();
-		if (!file || file.extension !== "md") return;
-		await this.autoSyncFile(file);
-	}
-
-	private refreshSyncViews() {
-		for (const leaf of this.app.workspace.getLeavesOfType(VIEW_TYPE_SYNC)) {
-			const view = leaf.view;
-			if (view instanceof SyncView) void view.refreshNow();
-		}
 	}
 
 	displayResult(uploadResult: ServiceResult, pageName: string) {
