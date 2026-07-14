@@ -113,7 +113,6 @@ const withoutChildren = (block: NotionBlock): NotionBlock => {
 
 const CREATE_KEYS = new Set(["object", "type"]);
 const RESPONSE_ONLY_KEYS = new Set([
-	"id",
 	"parent",
 	"created_time",
 	"last_edited_time",
@@ -125,6 +124,7 @@ const RESPONSE_ONLY_KEYS = new Set([
 	"plain_text",
 	"href",
 ]);
+const TOP_LEVEL_RESPONSE_ONLY_KEYS = new Set(["id", ...RESPONSE_ONLY_KEYS]);
 
 const sanitizeValue = (value: unknown): unknown => {
 	if (Array.isArray(value)) return value.map(sanitizeValue);
@@ -140,7 +140,7 @@ const sanitizeValue = (value: unknown): unknown => {
 const sanitizeBlockForCreate = (block: NotionBlock): NotionBlock => {
 	const clean: NotionBlock = { object: "block", type: block.type };
 	for (const [key, value] of Object.entries(withoutChildren(block))) {
-		if (CREATE_KEYS.has(key) || RESPONSE_ONLY_KEYS.has(key)) continue;
+		if (CREATE_KEYS.has(key) || TOP_LEVEL_RESPONSE_ONLY_KEYS.has(key)) continue;
 		clean[key] = sanitizeValue(value);
 	}
 	return clean;

@@ -7,7 +7,7 @@ import { createConnection } from "net";
 import { homedir, tmpdir } from "os";
 import { dirname, isAbsolute, join, relative, resolve } from "path";
 
-const VERSION = "0.3.0";
+const VERSION = "0.3.1";
 const PROTOCOL = 1;
 const MAX_RESPONSE_BYTES = 1024 * 1024;
 const RESPONSE_TIMEOUT_MS = 5 * 60 * 1000;
